@@ -1,0 +1,29 @@
+# Build directories
+build/
+cmake-build-*/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+
+# Cache directories
+.cache/
+.ccache/
+
+# Claude Code
+.claude/
+
+# External dependencies
+external/
