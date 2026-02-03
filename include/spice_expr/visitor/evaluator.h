@@ -75,7 +75,7 @@ class ComplexEvaluator : public ConstExprVisitor {
 
  private:
   std::complex<double> pop();
-  void warn_complex_fallback(const char* op_name);
+  static void warn_complex_fallback(const char* op_name);
 
   const SymbolTable& symbols_;
   const FunctionRegistry& functions_;

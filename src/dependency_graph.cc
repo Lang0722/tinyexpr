@@ -7,9 +7,7 @@ namespace spice_expr {
 
 void DependencyGraph::add_node(std::string_view name) {
   std::string key{name};
-  if (nodes_.find(key) == nodes_.end()) {
-    nodes_.emplace(key, DependencyNode(std::string{name}));
-  }
+  nodes_.try_emplace(key, DependencyNode(std::string{name}));
 }
 
 void DependencyGraph::add_dependency(std::string_view from, std::string_view to) {
@@ -170,12 +168,8 @@ std::optional<std::vector<std::string>> DependencyGraph::topological_sort() cons
 
   std::unordered_map<std::string, int> inDegree;
   for (const auto& [name, node] : nodes_) {
-    if (inDegree.find(name) == inDegree.end()) {
-      inDegree[name] = 0;
-    }
-    for (const auto& dep : node.dependsOn) {
-      inDegree[name]++;
-    }
+    auto [it, inserted] = inDegree.try_emplace(name, 0);
+    it->second += static_cast<int>(node.dependsOn.size());
   }
 
   std::queue<std::string> queue;

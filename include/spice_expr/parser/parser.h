@@ -59,13 +59,11 @@ class Parser {
   ExprNode* circuit_ref(const std::string& func);
 
   Token advance();
-  Token peek();
   bool check(TokenType type);
   bool match(TokenType type);
   Token consume(TokenType type, const std::string& message);
 
   void error(const std::string& message);
-  void synchronize();
 
   Lexer lexer_;
   ExprArena& arena_;

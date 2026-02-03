@@ -33,17 +33,17 @@ class Simplifier : public ConstExprVisitor {
   void visit(const TernaryConditional& node) override;
 
  private:
-  bool is_zero(const ExprNode& node) const;
-  bool is_one(const ExprNode& node) const;
-  bool is_constant(const ExprNode& node) const;
-  bool is_complex_constant(const ExprNode& node) const;
-  double get_constant_value(const ExprNode& node) const;
-  std::complex<double> get_complex_value(const ExprNode& node) const;
+  static bool is_zero(const ExprNode& node);
+  static bool is_one(const ExprNode& node);
+  static bool is_constant(const ExprNode& node);
+  static bool is_complex_constant(const ExprNode& node);
+  static double get_constant_value(const ExprNode& node);
+  static std::complex<double> get_complex_value(const ExprNode& node);
 
   // Commutativity exploitation helpers
-  bool is_commutative_associative(BinaryOpType op) const;
-  void collect_operands(const ExprNode& node, BinaryOpType op,
-                        std::vector<ExprNode*>& operands);
+  static bool is_commutative_associative(BinaryOpType op);
+  static void collect_operands(const ExprNode& node, BinaryOpType op,
+                               std::vector<ExprNode*>& operands);
   ExprNode* fold_constants(const std::vector<ExprNode*>& operands,
                            BinaryOpType op);
 

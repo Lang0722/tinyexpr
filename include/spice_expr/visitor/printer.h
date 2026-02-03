@@ -31,8 +31,8 @@ class ExprPrinter : public ConstExprVisitor {
   void visit(const TernaryConditional& node) override;
 
  private:
-  int precedence(const ExprNode& node) const;
-  bool needs_parens(const ExprNode& child, const ExprNode& parent, bool isRight) const;
+  static int precedence(const ExprNode& node);
+  static bool needs_parens(const ExprNode& child, const ExprNode& parent, bool isRight);
 
   PrintFormat format_;
   std::ostringstream ss_;

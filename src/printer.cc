@@ -180,7 +180,7 @@ void ExprPrinter::visit(const TernaryConditional& node) {
   node.false_expr()->accept(*this);
 }
 
-int ExprPrinter::precedence(const ExprNode& node) const {
+int ExprPrinter::precedence(const ExprNode& node) {
   if (node.type() == NodeType::BinaryOp) {
     switch (static_cast<const BinaryOp&>(node).op_type()) {
       case BinaryOpType::LogicalOr:
@@ -213,7 +213,7 @@ int ExprPrinter::precedence(const ExprNode& node) const {
   return 10;
 }
 
-bool ExprPrinter::needs_parens(const ExprNode& child, const ExprNode& parent, bool isRight) const {
+bool ExprPrinter::needs_parens(const ExprNode& child, const ExprNode& parent, bool isRight) {
   int childPrec = precedence(child);
   int parentPrec = precedence(parent);
 

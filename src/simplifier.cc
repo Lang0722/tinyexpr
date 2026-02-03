@@ -400,44 +400,44 @@ void Simplifier::visit(const TernaryConditional& node) {
                                             simplify(*node.false_expr()));
 }
 
-bool Simplifier::is_zero(const ExprNode& node) const {
+bool Simplifier::is_zero(const ExprNode& node) {
   if (!is_constant(node)) return false;
   const auto& lit = static_cast<const NumberLiteral&>(node);
   return lit.real() == 0.0 && lit.imag() == 0.0;
 }
 
-bool Simplifier::is_one(const ExprNode& node) const {
+bool Simplifier::is_one(const ExprNode& node) {
   if (!is_constant(node)) return false;
   const auto& lit = static_cast<const NumberLiteral&>(node);
   return lit.real() == 1.0 && lit.imag() == 0.0;
 }
 
-bool Simplifier::is_constant(const ExprNode& node) const {
+bool Simplifier::is_constant(const ExprNode& node) {
   return node.type() == NodeType::NumberLiteral;
 }
 
-bool Simplifier::is_complex_constant(const ExprNode& node) const {
+bool Simplifier::is_complex_constant(const ExprNode& node) {
   if (node.type() == NodeType::NumberLiteral) {
     return static_cast<const NumberLiteral&>(node).is_complex();
   }
   return false;
 }
 
-double Simplifier::get_constant_value(const ExprNode& node) const {
+double Simplifier::get_constant_value(const ExprNode& node) {
   if (node.type() == NodeType::NumberLiteral) {
     return static_cast<const NumberLiteral&>(node).real();
   }
   return 0.0;
 }
 
-std::complex<double> Simplifier::get_complex_value(const ExprNode& node) const {
+std::complex<double> Simplifier::get_complex_value(const ExprNode& node) {
   if (node.type() == NodeType::NumberLiteral) {
     return static_cast<const NumberLiteral&>(node).complex_value();
   }
   return {0.0, 0.0};
 }
 
-bool Simplifier::is_commutative_associative(BinaryOpType op) const {
+bool Simplifier::is_commutative_associative(BinaryOpType op) {
   return op == BinaryOpType::Add || op == BinaryOpType::Multiply;
 }
 

@@ -422,7 +422,7 @@ Token Lexer::error_token(const std::string& message) {
   return t;
 }
 
-double Lexer::parse_engineering_multiplier(const std::string& suffix) const {
+double Lexer::parse_engineering_multiplier(const std::string& suffix) {
   std::string lower = suffix;
   std::transform(lower.begin(), lower.end(), lower.begin(),
                  [](unsigned char c) { return std::tolower(c); });

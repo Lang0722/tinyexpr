@@ -31,7 +31,7 @@ std::string DependencyPrinter::print(const SymbolTable& symbols, std::string_vie
 void DependencyPrinter::collect_from_hierarchy(const ScopeHierarchy& hierarchy,
                                                const std::string& parent_path,
                                                std::vector<ScopedParameter>& params,
-                                               std::vector<ScopedDependency>& deps) const {
+                                               std::vector<ScopedDependency>& deps) {
   std::string scope_path = parent_path.empty() ? hierarchy.name : parent_path + "/" + hierarchy.name;
 
   collect_from_scope(*hierarchy.scope, scope_path, params, deps);
@@ -43,7 +43,7 @@ void DependencyPrinter::collect_from_hierarchy(const ScopeHierarchy& hierarchy,
 
 void DependencyPrinter::collect_from_scope(const SymbolTable& scope, const std::string& scope_path,
                                            std::vector<ScopedParameter>& params,
-                                           std::vector<ScopedDependency>& deps) const {
+                                           std::vector<ScopedDependency>& deps) {
   DependencyExtractor extractor;
 
   for (const auto& name : scope.all_symbol_names()) {
@@ -75,7 +75,7 @@ void DependencyPrinter::collect_from_scope(const SymbolTable& scope, const std::
 
 std::string DependencyPrinter::find_defining_scope(const SymbolTable& from_scope,
                                                    std::string_view param_name,
-                                                   const std::string& current_scope_path) const {
+                                                   const std::string& current_scope_path) {
   // For Local scoping mode: walk up the parent chain to find who owns this symbol
   // For Global scoping mode: the lookup will find the symbol in root or current scope
 

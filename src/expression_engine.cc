@@ -103,9 +103,9 @@ ExprNode* ExpressionEngine::simplify_to_fixpoint(const ExprNode& expr, int maxIt
 
 ExprNode* ExpressionEngine::differentiate(const ExprNode& expr, const DiffTarget& target) {
   Differentiator diff(arena_, target, &symbols_);
-  ExprNode* result = diff.differentiate(expr);
+  const ExprNode* diff_result = diff.differentiate(expr);
   Simplifier simplifier(arena_, &symbols_);
-  return simplifier.simplify_to_fixpoint(*result);
+  return simplifier.simplify_to_fixpoint(*diff_result);
 }
 
 std::unique_ptr<SymbolTable> ExpressionEngine::create_subcircuit_scope() {

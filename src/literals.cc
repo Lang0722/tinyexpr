@@ -76,7 +76,7 @@ void ArrayLiteral::accept(ConstExprVisitor& visitor) const {
 ExprNode* ArrayLiteral::clone(ExprArena& arena) const {
   std::vector<ExprNode*> clonedElements;
   clonedElements.reserve(elements_.size());
-  for (ExprNode* elem : elements_) {
+  for (const auto* elem : elements_) {
     clonedElements.push_back(elem->clone(arena));
   }
   return arena.make<ArrayLiteral>(std::move(clonedElements));

@@ -87,7 +87,7 @@ class Lexer {
   Token make_token(TokenType type);
   Token error_token(const std::string& message);
 
-  double parse_engineering_multiplier(const std::string& suffix) const;
+  static double parse_engineering_multiplier(const std::string& suffix);
 
   std::string input_;
   size_t pos_;

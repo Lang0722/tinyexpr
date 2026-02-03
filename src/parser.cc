@@ -322,10 +322,6 @@ Token Parser::advance() {
   return prev;
 }
 
-Token Parser::peek() {
-  return current_;
-}
-
 bool Parser::check(TokenType type) {
   return current_.type == type;
 }
@@ -352,17 +348,6 @@ void Parser::error(const std::string& message) {
   errors_.push_back("Line " + std::to_string(current_.line) + ", column " +
                     std::to_string(current_.column) + ": " + message);
   structuredErrors_.push_back({message, current_.line, current_.column});
-}
-
-void Parser::synchronize() {
-  advance();
-
-  while (!check(TokenType::EndOfInput)) {
-    if (check(TokenType::RParen) || check(TokenType::RBracket) || check(TokenType::Comma)) {
-      return;
-    }
-    advance();
-  }
 }
 
 ExprNode* parse_expression(const std::string& input, ExprArena& arena) {

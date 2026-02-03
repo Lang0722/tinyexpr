@@ -24,7 +24,7 @@ class ComplexDetector : public ConstExprVisitor {
   }
   void visit(const StringLiteral&) override {}
   void visit(const ArrayLiteral& node) override {
-    for (auto* elem : node.elements()) {
+    for (const auto* elem : node.elements()) {
       elem->accept(*this);
     }
   }
@@ -37,7 +37,7 @@ class ComplexDetector : public ConstExprVisitor {
   }
   void visit(const UnaryOp& node) override { node.operand()->accept(*this); }
   void visit(const FunctionCall& node) override {
-    for (auto* arg : node.arguments()) {
+    for (const auto* arg : node.arguments()) {
       arg->accept(*this);
     }
   }
@@ -137,79 +137,79 @@ void RealEvaluator::visit(const BinaryOp& node) {
   double right = pop();
   double left = pop();
 
-  double result;
+  double computed;
   switch (node.op_type()) {
     case BinaryOpType::Add:
-      result = left + right;
+      computed = left + right;
       break;
     case BinaryOpType::Subtract:
-      result = left - right;
+      computed = left - right;
       break;
     case BinaryOpType::Multiply:
-      result = left * right;
+      computed = left * right;
       break;
     case BinaryOpType::Divide:
       if (right == 0.0)
         throw EvaluationError("Division by zero");
-      result = left / right;
+      computed = left / right;
       break;
     case BinaryOpType::Power:
-      result = std::pow(left, right);
+      computed = std::pow(left, right);
       break;
     case BinaryOpType::Modulo:
       if (right == 0.0)
         throw EvaluationError("Modulo by zero");
-      result = std::fmod(left, right);
+      computed = std::fmod(left, right);
       break;
     case BinaryOpType::Equal:
-      result = (left == right) ? 1.0 : 0.0;
+      computed = (left == right) ? 1.0 : 0.0;
       break;
     case BinaryOpType::NotEqual:
-      result = (left != right) ? 1.0 : 0.0;
+      computed = (left != right) ? 1.0 : 0.0;
       break;
     case BinaryOpType::Less:
-      result = (left < right) ? 1.0 : 0.0;
+      computed = (left < right) ? 1.0 : 0.0;
       break;
     case BinaryOpType::LessEqual:
-      result = (left <= right) ? 1.0 : 0.0;
+      computed = (left <= right) ? 1.0 : 0.0;
       break;
     case BinaryOpType::Greater:
-      result = (left > right) ? 1.0 : 0.0;
+      computed = (left > right) ? 1.0 : 0.0;
       break;
     case BinaryOpType::GreaterEqual:
-      result = (left >= right) ? 1.0 : 0.0;
+      computed = (left >= right) ? 1.0 : 0.0;
       break;
     case BinaryOpType::LogicalAnd:
-      result = (left != 0.0 && right != 0.0) ? 1.0 : 0.0;
+      computed = (left != 0.0 && right != 0.0) ? 1.0 : 0.0;
       break;
     case BinaryOpType::LogicalOr:
-      result = (left != 0.0 || right != 0.0) ? 1.0 : 0.0;
+      computed = (left != 0.0 || right != 0.0) ? 1.0 : 0.0;
       break;
     default:
       throw EvaluationError("Unknown binary operator");
   }
-  stack_.push(result);
+  stack_.push(computed);
 }
 
 void RealEvaluator::visit(const UnaryOp& node) {
   node.operand()->accept(*this);
   double operand = pop();
 
-  double result;
+  double computed;
   switch (node.op_type()) {
     case UnaryOpType::Negate:
-      result = -operand;
+      computed = -operand;
       break;
     case UnaryOpType::Plus:
-      result = operand;
+      computed = operand;
       break;
     case UnaryOpType::LogicalNot:
-      result = (operand == 0.0) ? 1.0 : 0.0;
+      computed = (operand == 0.0) ? 1.0 : 0.0;
       break;
     default:
       throw EvaluationError("Unknown unary operator");
   }
-  stack_.push(result);
+  stack_.push(computed);
 }
 
 void RealEvaluator::visit(const FunctionCall& node) {
@@ -219,7 +219,7 @@ void RealEvaluator::visit(const FunctionCall& node) {
       throw EvaluationError("Wrong number of arguments for function " + node.name());
     }
     std::vector<double> argValues;
-    for (auto* arg : node.arguments()) {
+    for (const auto* arg : node.arguments()) {
       arg->accept(*this);
       argValues.push_back(pop());
     }
@@ -234,7 +234,7 @@ void RealEvaluator::visit(const FunctionCall& node) {
   }
 
   std::vector<double> args;
-  for (auto* arg : node.arguments()) {
+  for (const auto* arg : node.arguments()) {
     arg->accept(*this);
     args.push_back(pop());
   }
@@ -273,8 +273,8 @@ ComplexEvaluator::ComplexEvaluator(const SymbolTable& symbols, const FunctionReg
 
 void ComplexEvaluator::warn_complex_fallback(const char* op_name) {
   std::string op{op_name};
-  if (warned_ops_.find(op) == warned_ops_.end()) {
-    warned_ops_.insert(op);
+  auto [it, inserted] = warned_ops_.emplace(op);
+  if (inserted) {
     std::cerr << "Warning: operator '" << op_name
               << "' not supported for complex numbers, using real part\n";
   }
@@ -351,30 +351,30 @@ void ComplexEvaluator::visit(const BinaryOp& node) {
   auto right = pop();
   auto left = pop();
 
-  std::complex<double> result;
+  std::complex<double> computed;
   switch (node.op_type()) {
     case BinaryOpType::Add:
-      result = left + right;
+      computed = left + right;
       break;
     case BinaryOpType::Subtract:
-      result = left - right;
+      computed = left - right;
       break;
     case BinaryOpType::Multiply:
-      result = left * right;
+      computed = left * right;
       break;
     case BinaryOpType::Divide:
       if (right == std::complex<double>(0.0, 0.0))
         throw EvaluationError("Division by zero");
-      result = left / right;
+      computed = left / right;
       break;
     case BinaryOpType::Power:
-      result = std::pow(left, right);
+      computed = std::pow(left, right);
       break;
     case BinaryOpType::Equal:
-      result = (left == right) ? std::complex<double>(1.0, 0.0) : std::complex<double>(0.0, 0.0);
+      computed = (left == right) ? std::complex<double>(1.0, 0.0) : std::complex<double>(0.0, 0.0);
       break;
     case BinaryOpType::NotEqual:
-      result = (left != right) ? std::complex<double>(1.0, 0.0) : std::complex<double>(0.0, 0.0);
+      computed = (left != right) ? std::complex<double>(1.0, 0.0) : std::complex<double>(0.0, 0.0);
       break;
     // Operators that fall back to real-part evaluation with one-time warning
     case BinaryOpType::Modulo: {
@@ -382,73 +382,73 @@ void ComplexEvaluator::visit(const BinaryOp& node) {
       double l = left.real(), r = right.real();
       if (r == 0.0)
         throw EvaluationError("Modulo by zero");
-      result = std::complex<double>(std::fmod(l, r), 0.0);
+      computed = std::complex<double>(std::fmod(l, r), 0.0);
       break;
     }
     case BinaryOpType::Less: {
       warn_complex_fallback(binaryOpTypeToString(node.op_type()));
-      result = (left.real() < right.real()) ? std::complex<double>(1.0, 0.0)
-                                            : std::complex<double>(0.0, 0.0);
+      computed = (left.real() < right.real()) ? std::complex<double>(1.0, 0.0)
+                                              : std::complex<double>(0.0, 0.0);
       break;
     }
     case BinaryOpType::LessEqual: {
       warn_complex_fallback(binaryOpTypeToString(node.op_type()));
-      result = (left.real() <= right.real()) ? std::complex<double>(1.0, 0.0)
-                                             : std::complex<double>(0.0, 0.0);
+      computed = (left.real() <= right.real()) ? std::complex<double>(1.0, 0.0)
+                                               : std::complex<double>(0.0, 0.0);
       break;
     }
     case BinaryOpType::Greater: {
       warn_complex_fallback(binaryOpTypeToString(node.op_type()));
-      result = (left.real() > right.real()) ? std::complex<double>(1.0, 0.0)
-                                            : std::complex<double>(0.0, 0.0);
+      computed = (left.real() > right.real()) ? std::complex<double>(1.0, 0.0)
+                                              : std::complex<double>(0.0, 0.0);
       break;
     }
     case BinaryOpType::GreaterEqual: {
       warn_complex_fallback(binaryOpTypeToString(node.op_type()));
-      result = (left.real() >= right.real()) ? std::complex<double>(1.0, 0.0)
-                                             : std::complex<double>(0.0, 0.0);
+      computed = (left.real() >= right.real()) ? std::complex<double>(1.0, 0.0)
+                                               : std::complex<double>(0.0, 0.0);
       break;
     }
     case BinaryOpType::LogicalAnd: {
       warn_complex_fallback(binaryOpTypeToString(node.op_type()));
-      result = (left.real() != 0.0 && right.real() != 0.0) ? std::complex<double>(1.0, 0.0)
-                                                           : std::complex<double>(0.0, 0.0);
+      computed = (left.real() != 0.0 && right.real() != 0.0) ? std::complex<double>(1.0, 0.0)
+                                                             : std::complex<double>(0.0, 0.0);
       break;
     }
     case BinaryOpType::LogicalOr: {
       warn_complex_fallback(binaryOpTypeToString(node.op_type()));
-      result = (left.real() != 0.0 || right.real() != 0.0) ? std::complex<double>(1.0, 0.0)
-                                                           : std::complex<double>(0.0, 0.0);
+      computed = (left.real() != 0.0 || right.real() != 0.0) ? std::complex<double>(1.0, 0.0)
+                                                             : std::complex<double>(0.0, 0.0);
       break;
     }
     default:
       throw EvaluationError("Unknown binary operator");
   }
-  stack_.push(result);
+  stack_.push(computed);
 }
 
 void ComplexEvaluator::visit(const UnaryOp& node) {
   node.operand()->accept(*this);
   auto operand = pop();
 
-  std::complex<double> result;
+  std::complex<double> computed;
   switch (node.op_type()) {
     case UnaryOpType::Negate:
-      result = -operand;
+      computed = -operand;
       break;
     case UnaryOpType::Plus:
-      result = operand;
+      computed = operand;
       break;
     case UnaryOpType::LogicalNot: {
       warn_complex_fallback(unaryOpTypeToString(node.op_type()));
-      result = (operand.real() == 0.0) ? std::complex<double>(1.0, 0.0)
-                                       : std::complex<double>(0.0, 0.0);
+      computed = (operand.real() == 0.0) ? std::complex<double>(1.0, 0.0)
+                                         : std::complex<double>(0.0, 0.0);
       break;
     }
     default:
       throw EvaluationError("Unknown unary operator");
   }
-  stack_.push(result);
+  stack_.push(computed);
 }
 
 void ComplexEvaluator::visit(const FunctionCall& node) {
@@ -458,7 +458,7 @@ void ComplexEvaluator::visit(const FunctionCall& node) {
       throw EvaluationError("Wrong number of arguments for function " + node.name());
     }
     std::vector<std::complex<double>> argValues;
-    for (auto* arg : node.arguments()) {
+    for (const auto* arg : node.arguments()) {
       arg->accept(*this);
       argValues.push_back(pop());
     }
@@ -475,7 +475,7 @@ void ComplexEvaluator::visit(const FunctionCall& node) {
   }
 
   std::vector<std::complex<double>> args;
-  for (auto* arg : node.arguments()) {
+  for (const auto* arg : node.arguments()) {
     arg->accept(*this);
     args.push_back(pop());
   }

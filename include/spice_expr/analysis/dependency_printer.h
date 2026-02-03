@@ -49,18 +49,18 @@ class DependencyPrinter {
   };
 
   // Collect parameters and dependencies from a scope hierarchy
-  void collect_from_hierarchy(const ScopeHierarchy& hierarchy, const std::string& parent_path,
-                              std::vector<ScopedParameter>& params,
-                              std::vector<ScopedDependency>& deps) const;
+  static void collect_from_hierarchy(const ScopeHierarchy& hierarchy, const std::string& parent_path,
+                                     std::vector<ScopedParameter>& params,
+                                     std::vector<ScopedDependency>& deps);
 
   // Collect from a single scope
-  void collect_from_scope(const SymbolTable& scope, const std::string& scope_path,
-                          std::vector<ScopedParameter>& params,
-                          std::vector<ScopedDependency>& deps) const;
+  static void collect_from_scope(const SymbolTable& scope, const std::string& scope_path,
+                                 std::vector<ScopedParameter>& params,
+                                 std::vector<ScopedDependency>& deps);
 
   // Find which scope defines a parameter by walking up the parent chain
-  std::string find_defining_scope(const SymbolTable& from_scope, std::string_view param_name,
-                                  const std::string& current_scope_path) const;
+  static std::string find_defining_scope(const SymbolTable& from_scope, std::string_view param_name,
+                                         const std::string& current_scope_path);
 
   // Format collected data as text output
   std::string format_output(const std::vector<ScopedParameter>& params,

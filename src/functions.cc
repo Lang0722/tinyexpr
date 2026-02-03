@@ -20,7 +20,7 @@ void FunctionCall::accept(ConstExprVisitor& visitor) const {
 ExprNode* FunctionCall::clone(ExprArena& arena) const {
   std::vector<ExprNode*> clonedArgs;
   clonedArgs.reserve(arguments_.size());
-  for (ExprNode* arg : arguments_) {
+  for (const auto* arg : arguments_) {
     clonedArgs.push_back(arg->clone(arena));
   }
   return arena.make<FunctionCall>(name_, std::move(clonedArgs));

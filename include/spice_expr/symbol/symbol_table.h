@@ -26,7 +26,7 @@ struct SymbolEntry {
 class SymbolTable {
  public:
   explicit SymbolTable(ScopingMode mode = ScopingMode::Local);
-  SymbolTable(SymbolTable* parent, ScopingMode mode = ScopingMode::Local);
+  explicit SymbolTable(SymbolTable* parent, ScopingMode mode = ScopingMode::Local);
 
   void define(std::string_view name, ExprNode* expression);
   void bind_value(std::string_view name, double value);

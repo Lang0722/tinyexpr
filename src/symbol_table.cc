@@ -48,9 +48,7 @@ const SymbolEntry* SymbolTable::lookup_local(std::string_view name) const {
     auto overrideIt = overrides_.find(key);
     if (overrideIt != overrides_.end()) {
       // Store original expression if not already stored (originalExpressions_ is mutable)
-      if (originalExpressions_.find(key) == originalExpressions_.end()) {
-        originalExpressions_[key] = it->second.expression;
-      }
+      originalExpressions_.try_emplace(key, it->second.expression);
       const_cast<SymbolEntry&>(it->second).expression = overrideIt->second;
     } else {
       // No override - restore original if we have one stored
@@ -81,18 +79,14 @@ const SymbolEntry* SymbolTable::lookup_global(std::string_view name) const {
     // Check for override in current table first (child can override root symbols)
     auto overrideIt = overrides_.find(key);
     if (overrideIt != overrides_.end()) {
-      if (root->originalExpressions_.find(key) == root->originalExpressions_.end()) {
-        root->originalExpressions_[key] = rootIt->second.expression;
-      }
+      root->originalExpressions_.try_emplace(key, rootIt->second.expression);
       const_cast<SymbolEntry&>(rootIt->second).expression = overrideIt->second;
       return &rootIt->second;
     }
     // Check for override in root table
     auto rootOverrideIt = root->overrides_.find(key);
     if (rootOverrideIt != root->overrides_.end()) {
-      if (root->originalExpressions_.find(key) == root->originalExpressions_.end()) {
-        root->originalExpressions_[key] = rootIt->second.expression;
-      }
+      root->originalExpressions_.try_emplace(key, rootIt->second.expression);
       const_cast<SymbolEntry&>(rootIt->second).expression = rootOverrideIt->second;
       return &rootIt->second;
     }
@@ -109,9 +103,7 @@ const SymbolEntry* SymbolTable::lookup_global(std::string_view name) const {
   if (it != symbols_.end()) {
     auto overrideIt = overrides_.find(key);
     if (overrideIt != overrides_.end()) {
-      if (originalExpressions_.find(key) == originalExpressions_.end()) {
-        originalExpressions_[key] = it->second.expression;
-      }
+      originalExpressions_.try_emplace(key, it->second.expression);
       const_cast<SymbolEntry&>(it->second).expression = overrideIt->second;
     } else {
       auto origIt = originalExpressions_.find(key);
