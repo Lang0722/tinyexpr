@@ -2,9 +2,18 @@
 #define SPICE_EXPR_ARRAY_XTENSOR_H
 
 #include <complex>
-#include <memory>
 #include <stdexcept>
+#include <variant>
 #include <vector>
+
+// xtensor master uses modular headers in subdirectories
+#include <xtensor/containers/xarray.hpp>
+#include <xtensor/containers/xadapt.hpp>
+#include <xtensor/generators/xbuilder.hpp>
+#include <xtensor/core/xmath.hpp>
+#include <xtensor/views/xview.hpp>
+#include <xtensor/io/xio.hpp>
+#include <xtensor/misc/xcomplex.hpp>
 
 namespace spice_expr {
 
@@ -13,11 +22,11 @@ class XTensorError : public std::runtime_error {
   explicit XTensorError(const std::string& msg) : std::runtime_error(msg) {}
 };
 
-// Forward declaration of implementation base class (hides xtensor from header)
-class XTensorImplBase;
+// Type aliases for xtensor arrays
+using RealXTensor = xt::xarray<double>;
+using ComplexXTensor = xt::xarray<std::complex<double>>;
 
 // Type-erased wrapper for xtensor arrays supporting both real and complex types
-// Uses PIMPL to avoid xtensor template instantiation issues in headers
 class XTensor {
  public:
   XTensor();
@@ -37,6 +46,10 @@ class XTensor {
 
   // Construction from initializer list
   XTensor(std::initializer_list<double> values);
+
+  // Construction from xtensor arrays
+  explicit XTensor(RealXTensor arr);
+  explicit XTensor(ComplexXTensor arr);
 
   // Scalar construction (0-dimensional tensors)
   static XTensor scalar(double value);
@@ -67,28 +80,14 @@ class XTensor {
   double min_real() const;
   double max_real() const;
 
-  // Access to implementation (for internal use by ArrayEvaluator)
-  XTensorImplBase* impl() { return impl_.get(); }
-  const XTensorImplBase* impl() const { return impl_.get(); }
+  // Access to stored arrays
+  RealXTensor& real();
+  const RealXTensor& real() const;
+  ComplexXTensor& complex();
+  const ComplexXTensor& complex() const;
 
  private:
-  // Private constructor for factory functions
-  explicit XTensor(std::unique_ptr<XTensorImplBase> impl);
-
-  std::unique_ptr<XTensorImplBase> impl_;
-
-  // Factory functions need access to private constructor
-  friend XTensor linspace(double start, double stop, size_t num);
-  friend XTensor arange(double start, double stop, double step);
-  friend XTensor zeros(size_t n);
-  friend XTensor zeros(const std::vector<size_t>& shape);
-  friend XTensor ones(size_t n);
-  friend XTensor ones(const std::vector<size_t>& shape);
-  friend XTensor make_scalar_real(double value);
-  friend XTensor make_scalar_complex(std::complex<double> value);
-
-  // Internal helper for creating XTensor from impl (used by ArrayEvaluator)
-  friend XTensor make_xtensor_from_impl(std::unique_ptr<XTensorImplBase> impl);
+  std::variant<RealXTensor, ComplexXTensor> data_;
 };
 
 // Factory functions for array creation
@@ -98,9 +97,6 @@ XTensor zeros(size_t n);
 XTensor zeros(const std::vector<size_t>& shape);
 XTensor ones(size_t n);
 XTensor ones(const std::vector<size_t>& shape);
-
-// Internal helper for ArrayEvaluator (declared here, defined in xtensor.cc)
-XTensor make_xtensor_from_impl(std::unique_ptr<XTensorImplBase> impl);
 
 }  // namespace spice_expr
 

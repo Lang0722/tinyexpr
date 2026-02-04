@@ -1,7 +1,6 @@
 #include "spice_expr/visitor/array_evaluator.h"
 
 #include "spice_expr/array/xtensor.h"
-#include "spice_expr/array/xtensor_impl.h"
 #include "spice_expr/ast/arena.h"
 #include "spice_expr/ast/functions.h"
 #include "spice_expr/ast/literals.h"
@@ -16,11 +15,11 @@ namespace spice_expr {
 namespace {
 
 XTensor make_xtensor(RealXTensor arr) {
-  return make_xtensor_from_impl(make_real_impl(std::move(arr)));
+  return XTensor(std::move(arr));
 }
 
 XTensor make_xtensor(ComplexXTensor arr) {
-  return make_xtensor_from_impl(make_complex_impl(std::move(arr)));
+  return XTensor(std::move(arr));
 }
 
 }  // namespace
@@ -291,15 +290,15 @@ EvalValue ArrayEvaluator::apply_binary_op(BinaryOpType op, const EvalValue& lhs,
     // Need to use explicit assignment to avoid ternary type ambiguity
     ComplexXTensor larr;
     if (la.is_complex()) {
-      larr = la.impl()->as_complex();
+      larr = la.complex();
     } else {
-      larr = xt::eval(xt::cast<std::complex<double>>(la.impl()->as_real()));
+      larr = xt::eval(xt::cast<std::complex<double>>(la.real()));
     }
     ComplexXTensor rarr;
     if (ra.is_complex()) {
-      rarr = ra.impl()->as_complex();
+      rarr = ra.complex();
     } else {
-      rarr = xt::eval(xt::cast<std::complex<double>>(ra.impl()->as_real()));
+      rarr = xt::eval(xt::cast<std::complex<double>>(ra.real()));
     }
 
     switch (op) {
@@ -317,8 +316,8 @@ EvalValue ArrayEvaluator::apply_binary_op(BinaryOpType op, const EvalValue& lhs,
         throw EvaluationError("Operator not supported for complex arrays");
     }
   } else {
-    const RealXTensor& larr = la.impl()->as_real();
-    const RealXTensor& rarr = ra.impl()->as_real();
+    const RealXTensor& larr = la.real();
+    const RealXTensor& rarr = ra.real();
 
     switch (op) {
       case BinaryOpType::Add:
@@ -361,7 +360,7 @@ EvalValue ArrayEvaluator::apply_unary_op(UnaryOpType op, const EvalValue& operan
   // Unified tensor approach: all values are XTensor (0-D for scalars)
   const XTensor& arr = EvalValueOps::to_array(operand);
   if (arr.is_complex()) {
-    const ComplexXTensor& a = arr.impl()->as_complex();
+    const ComplexXTensor& a = arr.complex();
     switch (op) {
       case UnaryOpType::Negate:
         return make_xtensor(ComplexXTensor(-a));
@@ -371,7 +370,7 @@ EvalValue ArrayEvaluator::apply_unary_op(UnaryOpType op, const EvalValue& operan
         throw EvaluationError("Operator not supported for complex arrays");
     }
   } else {
-    const RealXTensor& a = arr.impl()->as_real();
+    const RealXTensor& a = arr.real();
     switch (op) {
       case UnaryOpType::Negate:
         return make_xtensor(RealXTensor(-a));
@@ -474,7 +473,7 @@ void ArrayEvaluator::visit(const FunctionCall& node) {
     const XTensor& arr = EvalValueOps::to_array(pop());
 
     if (arr.is_real()) {
-      const RealXTensor& a = arr.impl()->as_real();
+      const RealXTensor& a = arr.real();
       RealXTensor result;
       if (name == "sin") result = xt::sin(a);
       else if (name == "cos") result = xt::cos(a);
@@ -496,7 +495,7 @@ void ArrayEvaluator::visit(const FunctionCall& node) {
       else throw EvaluationError("Unknown function: " + name);
       stack_.push(make_xtensor(std::move(result)));
     } else {
-      const ComplexXTensor& a = arr.impl()->as_complex();
+      const ComplexXTensor& a = arr.complex();
       ComplexXTensor result;
       if (name == "sin") result = xt::sin(a);
       else if (name == "cos") result = xt::cos(a);
@@ -523,9 +522,9 @@ void ArrayEvaluator::visit(const FunctionCall& node) {
 
     if (arr.is_complex()) {
       if (name == "real") {
-        stack_.push(make_xtensor(RealXTensor(xt::real(arr.impl()->as_complex()))));
+        stack_.push(make_xtensor(RealXTensor(xt::real(arr.complex()))));
       } else {
-        stack_.push(make_xtensor(RealXTensor(xt::imag(arr.impl()->as_complex()))));
+        stack_.push(make_xtensor(RealXTensor(xt::imag(arr.complex()))));
       }
     } else {
       if (name == "real") {
