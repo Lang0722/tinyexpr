@@ -454,6 +454,10 @@ void ComplexEvaluator::visit(const UnaryOp& node) {
 void ComplexEvaluator::visit(const FunctionCall& node) {
   const UserFunction* userFunc = functions_.lookup_user(node.name());
   if (userFunc) {
+    if (!arena_) {
+      throw EvaluationError(
+          "Arena required for user-defined function evaluation: " + node.name());
+    }
     if (node.argument_count() != userFunc->parameter_count()) {
       throw EvaluationError("Wrong number of arguments for function " + node.name());
     }

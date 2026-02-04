@@ -1,5 +1,6 @@
 #include "spice_expr/symbol/symbol_table.h"
 
+#include "spice_expr/array/xtensor.h"
 #include "spice_expr/ast/expr_node.h"
 
 namespace spice_expr {
@@ -26,11 +27,29 @@ void SymbolTable::set_override(std::string_view name, ExprNode* expression) {
 }
 
 void SymbolTable::clear_override(std::string_view name) {
-  overrides_.erase(std::string{name});
+  std::string key{name};
+  overrides_.erase(key);
+  // Eagerly restore the original expression if one was cached
+  auto origIt = originalExpressions_.find(key);
+  if (origIt != originalExpressions_.end()) {
+    auto symIt = symbols_.find(key);
+    if (symIt != symbols_.end()) {
+      symIt->second.expression = origIt->second;
+    }
+    originalExpressions_.erase(origIt);
+  }
 }
 
 void SymbolTable::clear_all_overrides() {
   overrides_.clear();
+  // Eagerly restore all original expressions
+  for (const auto& [key, originalExpr] : originalExpressions_) {
+    auto symIt = symbols_.find(key);
+    if (symIt != symbols_.end()) {
+      symIt->second.expression = originalExpr;
+    }
+  }
+  originalExpressions_.clear();
 }
 
 const SymbolEntry* SymbolTable::lookup(std::string_view name) const {
@@ -197,6 +216,55 @@ std::vector<ExprNode*> SymbolTable::get_parameters_with_flag(std::string_view fl
     }
   }
   return result;
+}
+
+// Array support for post-processing calculations
+
+void SymbolTable::define_array(const std::string& name, const std::vector<double>& data) {
+  arrays_[name] = std::make_unique<XTensor>(data);
+}
+
+void SymbolTable::define_array(const std::string& name,
+                               const std::vector<std::complex<double>>& data) {
+  arrays_[name] = std::make_unique<XTensor>(data);
+}
+
+bool SymbolTable::is_array(std::string_view name) const {
+  std::string key{name};
+  if (arrays_.count(key) > 0) {
+    return true;
+  }
+  if (parent_) {
+    return parent_->is_array(name);
+  }
+  return false;
+}
+
+const XTensor* SymbolTable::lookup_array(std::string_view name) const {
+  std::string key{name};
+  auto it = arrays_.find(key);
+  if (it != arrays_.end()) {
+    return it->second.get();
+  }
+  if (parent_) {
+    return parent_->lookup_array(name);
+  }
+  return nullptr;
+}
+
+void SymbolTable::clear_array(std::string_view name) {
+  arrays_.erase(std::string{name});
+}
+
+void SymbolTable::clear_all_arrays() { arrays_.clear(); }
+
+std::vector<std::string> SymbolTable::all_array_names() const {
+  std::vector<std::string> names;
+  names.reserve(arrays_.size());
+  for (const auto& [name, arr] : arrays_) {
+    names.push_back(name);
+  }
+  return names;
 }
 
 }  // namespace spice_expr
