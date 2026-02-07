@@ -1,5 +1,6 @@
 #include "spice_expr/array/array_value.h"
 
+#include <algorithm>
 #include <numeric>
 
 namespace spice_expr {
@@ -71,11 +72,9 @@ ArrayValue ArrayValue::to_complex() const {
     return *this;
   }
   const auto& real = std::get<RealArray>(data_);
-  ComplexArray complex;
-  complex.reserve(real.size());
-  for (double v : real) {
-    complex.emplace_back(v, 0.0);
-  }
+  ComplexArray complex(real.size());
+  std::transform(real.begin(), real.end(), complex.begin(),
+                 [](double v) { return std::complex<double>(v, 0.0); });
   return ArrayValue(std::move(complex));
 }
 
@@ -87,11 +86,8 @@ double ArrayValue::sum(const ArrayValue& arr) {
     return std::accumulate(data.begin(), data.end(), 0.0);
   }
   const auto& data = arr.complex_data();
-  double s = 0.0;
-  for (const auto& v : data) {
-    s += v.real();
-  }
-  return s;
+  return std::accumulate(data.begin(), data.end(), 0.0,
+                         [](double s, const auto& v) { return s + v.real(); });
 }
 
 double ArrayValue::avg(const ArrayValue& arr) {

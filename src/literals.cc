@@ -1,6 +1,8 @@
 #include "spice_expr/ast/literals.h"
 
+#include <algorithm>
 #include <functional>
+#include <numeric>
 
 #include "spice_expr/ast/arena.h"
 #include "spice_expr/visitor/visitor.h"
@@ -74,20 +76,16 @@ void ArrayLiteral::accept(ConstExprVisitor& visitor) const {
 }
 
 ExprNode* ArrayLiteral::clone(ExprArena& arena) const {
-  std::vector<ExprNode*> clonedElements;
-  clonedElements.reserve(elements_.size());
-  for (const auto* elem : elements_) {
-    clonedElements.push_back(elem->clone(arena));
-  }
+  std::vector<ExprNode*> clonedElements(elements_.size());
+  std::transform(elements_.begin(), elements_.end(), clonedElements.begin(),
+                 [&arena](const auto* elem) { return elem->clone(arena); });
   return arena.make<ArrayLiteral>(std::move(clonedElements));
 }
 
 size_t ArrayLiteral::hash() const {
-  size_t h = 0x12345678;
-  for (const ExprNode* elem : elements_) {
-    h = combineHash(h, elem->hash());
-  }
-  return h;
+  return std::accumulate(
+      elements_.begin(), elements_.end(), static_cast<size_t>(0x12345678),
+      [](size_t h, const ExprNode* elem) { return combineHash(h, elem->hash()); });
 }
 
 bool ArrayLiteral::equals(const ExprNode& other) const {

@@ -11,7 +11,7 @@
 
 namespace spice_expr {
 
-// Helper functions to create XTensor from xtensor arrays
+// Helper functions to create XTensor from tensor arrays
 namespace {
 
 XTensor make_xtensor(RealXTensor arr) {
@@ -25,7 +25,7 @@ XTensor make_xtensor(ComplexXTensor arr) {
 }  // namespace
 
 // EvalValueOps implementation
-// With unified tensor approach, all values are XTensor (scalars are 0-D tensors)
+// With unified tensor approach, all values are XTensor (scalars are 1-element tensors)
 
 bool EvalValueOps::is_scalar(const EvalValue& v) {
   if (std::holds_alternative<double>(v) || std::holds_alternative<std::complex<double>>(v)) {
@@ -114,7 +114,7 @@ namespace {
 
 class ArrayDetector : public ConstExprVisitor {
  public:
-  ArrayDetector(const SymbolTable& symbols) : symbols_(symbols) {}
+  explicit ArrayDetector(const SymbolTable& symbols) : symbols_(symbols) {}
 
   bool requires_array = false;
 
@@ -188,7 +188,6 @@ EvalValue ArrayEvaluator::pop() {
 }
 
 void ArrayEvaluator::visit(const NumberLiteral& node) {
-  // Always push 0-D tensor for unified tensor approach
   if (node.is_complex()) {
     stack_.push(XTensor::scalar(node.complex_value()));
   } else {
@@ -237,7 +236,7 @@ void ArrayEvaluator::visit(const Identifier& node) {
     return;
   }
 
-  // Check for directly bound scalar values - convert to 0-D tensor
+  // Check for directly bound scalar values - convert to scalar tensor
   auto direct = symbols_.lookup_direct_value(node.name());
   if (direct.has_value()) {
     stack_.push(XTensor::scalar(*direct));
@@ -256,7 +255,6 @@ void ArrayEvaluator::visit(const Identifier& node) {
 }
 
 void ArrayEvaluator::visit(const CircuitNodeRef& node) {
-  // Circuit references return 0-D tensors
   if (node.is_differential()) {
     stack_.push(XTensor::scalar(circuit_.get_differential_voltage_real(node.node1(), node.node2())));
   } else {
@@ -278,7 +276,7 @@ void ArrayEvaluator::visit(const BinaryOp& node) {
 
 EvalValue ArrayEvaluator::apply_binary_op(BinaryOpType op, const EvalValue& lhs,
                                           const EvalValue& rhs) {
-  // Unified tensor approach: all values are XTensor (0-D for scalars)
+  // Unified tensor approach: all values are XTensor (shape {1} for scalars)
   // Broadcasting handles scalar-scalar, scalar-array, and array-array operations uniformly
   const XTensor& la = EvalValueOps::to_array(lhs);
   const XTensor& ra = EvalValueOps::to_array(rhs);
@@ -287,31 +285,30 @@ EvalValue ArrayEvaluator::apply_binary_op(BinaryOpType op, const EvalValue& lhs,
   bool need_complex = la.is_complex() || ra.is_complex();
 
   if (need_complex) {
-    // Need to use explicit assignment to avoid ternary type ambiguity
     ComplexXTensor larr;
     if (la.is_complex()) {
       larr = la.complex();
     } else {
-      larr = xt::eval(xt::cast<std::complex<double>>(la.real()));
+      larr = detail::cast_to_complex(la.real());
     }
     ComplexXTensor rarr;
     if (ra.is_complex()) {
       rarr = ra.complex();
     } else {
-      rarr = xt::eval(xt::cast<std::complex<double>>(ra.real()));
+      rarr = detail::cast_to_complex(ra.real());
     }
 
     switch (op) {
       case BinaryOpType::Add:
-        return make_xtensor(ComplexXTensor(larr + rarr));
+        return make_xtensor(larr + rarr);
       case BinaryOpType::Subtract:
-        return make_xtensor(ComplexXTensor(larr - rarr));
+        return make_xtensor(larr - rarr);
       case BinaryOpType::Multiply:
-        return make_xtensor(ComplexXTensor(larr * rarr));
+        return make_xtensor(larr * rarr);
       case BinaryOpType::Divide:
-        return make_xtensor(ComplexXTensor(larr / rarr));
+        return make_xtensor(larr / rarr);
       case BinaryOpType::Power:
-        return make_xtensor(ComplexXTensor(xt::pow(larr, rarr)));
+        return make_xtensor(tt::pow(larr, rarr));
       default:
         throw EvaluationError("Operator not supported for complex arrays");
     }
@@ -321,29 +318,29 @@ EvalValue ArrayEvaluator::apply_binary_op(BinaryOpType op, const EvalValue& lhs,
 
     switch (op) {
       case BinaryOpType::Add:
-        return make_xtensor(RealXTensor(larr + rarr));
+        return make_xtensor(larr + rarr);
       case BinaryOpType::Subtract:
-        return make_xtensor(RealXTensor(larr - rarr));
+        return make_xtensor(larr - rarr);
       case BinaryOpType::Multiply:
-        return make_xtensor(RealXTensor(larr * rarr));
+        return make_xtensor(larr * rarr);
       case BinaryOpType::Divide:
-        return make_xtensor(RealXTensor(larr / rarr));
+        return make_xtensor(larr / rarr);
       case BinaryOpType::Power:
-        return make_xtensor(RealXTensor(xt::pow(larr, rarr)));
+        return make_xtensor(tt::pow(larr, rarr));
       case BinaryOpType::Modulo:
-        return make_xtensor(RealXTensor(xt::fmod(larr, rarr)));
+        return make_xtensor(detail::fmod(larr, rarr));
       case BinaryOpType::Equal:
-        return make_xtensor(RealXTensor(xt::cast<double>(xt::equal(larr, rarr))));
+        return make_xtensor(detail::cast_to_double(larr == rarr));
       case BinaryOpType::NotEqual:
-        return make_xtensor(RealXTensor(xt::cast<double>(xt::not_equal(larr, rarr))));
+        return make_xtensor(detail::cast_to_double(larr != rarr));
       case BinaryOpType::Less:
-        return make_xtensor(RealXTensor(xt::cast<double>(xt::less(larr, rarr))));
+        return make_xtensor(detail::cast_to_double(larr < rarr));
       case BinaryOpType::LessEqual:
-        return make_xtensor(RealXTensor(xt::cast<double>(xt::less_equal(larr, rarr))));
+        return make_xtensor(detail::cast_to_double(larr <= rarr));
       case BinaryOpType::Greater:
-        return make_xtensor(RealXTensor(xt::cast<double>(xt::greater(larr, rarr))));
+        return make_xtensor(detail::cast_to_double(larr > rarr));
       case BinaryOpType::GreaterEqual:
-        return make_xtensor(RealXTensor(xt::cast<double>(xt::greater_equal(larr, rarr))));
+        return make_xtensor(detail::cast_to_double(larr >= rarr));
       default:
         throw EvaluationError("Operator not supported for arrays");
     }
@@ -357,7 +354,6 @@ void ArrayEvaluator::visit(const UnaryOp& node) {
 }
 
 EvalValue ArrayEvaluator::apply_unary_op(UnaryOpType op, const EvalValue& operand) {
-  // Unified tensor approach: all values are XTensor (0-D for scalars)
   const XTensor& arr = EvalValueOps::to_array(operand);
   if (arr.is_complex()) {
     const ComplexXTensor& a = arr.complex();
@@ -377,7 +373,7 @@ EvalValue ArrayEvaluator::apply_unary_op(UnaryOpType op, const EvalValue& operan
       case UnaryOpType::Plus:
         return make_xtensor(RealXTensor(a));
       case UnaryOpType::LogicalNot:
-        return make_xtensor(RealXTensor(xt::cast<double>(xt::equal(a, 0.0))));
+        return make_xtensor(detail::cast_to_double(a == RealXTensor({0.0})));
       default:
         throw EvaluationError("Unknown unary operator");
     }
@@ -447,7 +443,6 @@ void ArrayEvaluator::visit(const FunctionCall& node) {
     node.arguments()[0]->accept(*this);
     const XTensor& arr = EvalValueOps::to_array(pop());
 
-    // Reductions return 0-D tensors
     if (name == "sum") {
       stack_.push(XTensor::scalar(arr.sum_real()));
     } else if (name == "mean") {
@@ -463,7 +458,6 @@ void ArrayEvaluator::visit(const FunctionCall& node) {
   }
 
   // Handle element-wise math functions
-  // Unified tensor approach: always use xtensor operations (works for 0-D scalars too)
   static const std::set<std::string> elementwise_funcs = {
       "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh",
       "exp", "log", "log10", "sqrt", "abs", "floor", "ceil", "round"};
@@ -474,64 +468,64 @@ void ArrayEvaluator::visit(const FunctionCall& node) {
 
     if (arr.is_real()) {
       const RealXTensor& a = arr.real();
-      RealXTensor result;
-      if (name == "sin") result = xt::sin(a);
-      else if (name == "cos") result = xt::cos(a);
-      else if (name == "tan") result = xt::tan(a);
-      else if (name == "asin") result = xt::asin(a);
-      else if (name == "acos") result = xt::acos(a);
-      else if (name == "atan") result = xt::atan(a);
-      else if (name == "sinh") result = xt::sinh(a);
-      else if (name == "cosh") result = xt::cosh(a);
-      else if (name == "tanh") result = xt::tanh(a);
-      else if (name == "exp") result = xt::exp(a);
-      else if (name == "log") result = xt::log(a);
-      else if (name == "log10") result = xt::log10(a);
-      else if (name == "sqrt") result = xt::sqrt(a);
-      else if (name == "abs") result = xt::abs(a);
-      else if (name == "floor") result = xt::floor(a);
-      else if (name == "ceil") result = xt::ceil(a);
-      else if (name == "round") result = xt::round(a);
+      RealXTensor r;
+      if (name == "sin") r = tt::sin(a);
+      else if (name == "cos") r = tt::cos(a);
+      else if (name == "tan") r = tt::tan(a);
+      else if (name == "asin") r = tt::asin(a);
+      else if (name == "acos") r = tt::acos(a);
+      else if (name == "atan") r = tt::atan(a);
+      else if (name == "sinh") r = tt::sinh(a);
+      else if (name == "cosh") r = tt::cosh(a);
+      else if (name == "tanh") r = tt::tanh(a);
+      else if (name == "exp") r = tt::exp(a);
+      else if (name == "log") r = tt::log(a);
+      else if (name == "log10") r = tt::log10(a);
+      else if (name == "sqrt") r = tt::sqrt(a);
+      else if (name == "abs") r = tt::abs(a);
+      else if (name == "floor") r = tt::floor(a);
+      else if (name == "ceil") r = tt::ceil(a);
+      else if (name == "round") r = tt::round(a);
       else throw EvaluationError("Unknown function: " + name);
-      stack_.push(make_xtensor(std::move(result)));
+      stack_.push(make_xtensor(std::move(r)));
     } else {
       const ComplexXTensor& a = arr.complex();
-      ComplexXTensor result;
-      if (name == "sin") result = xt::sin(a);
-      else if (name == "cos") result = xt::cos(a);
-      else if (name == "tan") result = xt::tan(a);
-      else if (name == "exp") result = xt::exp(a);
-      else if (name == "log") result = xt::log(a);
-      else if (name == "sqrt") result = xt::sqrt(a);
-      else if (name == "abs") {
-        // abs of complex returns real array
-        stack_.push(make_xtensor(RealXTensor(xt::abs(a))));
+      if (name == "abs") {
+        // abs of complex returns real array (tt::abs correctly deduces double return)
+        stack_.push(make_xtensor(tt::abs(a)));
         return;
       }
+      ComplexXTensor r;
+      if (name == "sin") r = tt::sin(a);
+      else if (name == "cos") r = tt::cos(a);
+      else if (name == "tan") r = tt::tan(a);
+      else if (name == "exp") r = tt::exp(a);
+      else if (name == "log") r = tt::log(a);
+      else if (name == "sqrt") r = tt::sqrt(a);
       else throw EvaluationError("Function " + name + " not supported for complex arrays");
-      stack_.push(make_xtensor(std::move(result)));
+      stack_.push(make_xtensor(std::move(r)));
     }
     return;
   }
 
   // Handle real/imag for complex arrays
-  // Unified tensor approach: always use xtensor operations
   if ((name == "real" || name == "imag") && node.argument_count() == 1) {
     node.arguments()[0]->accept(*this);
     const XTensor& arr = EvalValueOps::to_array(pop());
 
     if (arr.is_complex()) {
       if (name == "real") {
-        stack_.push(make_xtensor(RealXTensor(xt::real(arr.complex()))));
+        stack_.push(make_xtensor(detail::extract_real(arr.complex())));
       } else {
-        stack_.push(make_xtensor(RealXTensor(xt::imag(arr.complex()))));
+        stack_.push(make_xtensor(detail::extract_imag(arr.complex())));
       }
     } else {
       if (name == "real") {
         stack_.push(arr);
       } else {
         // imag of real tensor is zeros with same shape
-        stack_.push(make_xtensor(RealXTensor(xt::zeros<double>(arr.shape()))));
+        auto s = arr.shape();
+        stack_.push(make_xtensor(tt::zeros<double>(tt::shape_t(s.begin(), s.end()))));
       }
     }
     return;
@@ -547,7 +541,6 @@ void ArrayEvaluator::visit(const FunctionCall& node) {
     }
     args.push_back(val.get_real_at(0));
   }
-  // Return 0-D tensor
   stack_.push(XTensor::scalar(functions_.evaluate_real_builtin(name, args)));
 }
 
@@ -570,7 +563,6 @@ void ArrayEvaluator::visit(const ArrayIndex& node) {
     throw EvaluationError("Array index out of bounds");
   }
 
-  // Return 0-D tensor for indexed element
   if (arr.is_real()) {
     stack_.push(XTensor::scalar(arr.get_real_at(idx)));
   } else {

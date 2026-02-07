@@ -45,10 +45,10 @@ class ArrayEvaluator : public ConstExprVisitor {
   EvalValue pop();
 
   // Apply binary operation with automatic broadcasting
-  EvalValue apply_binary_op(BinaryOpType op, const EvalValue& lhs, const EvalValue& rhs);
+  static EvalValue apply_binary_op(BinaryOpType op, const EvalValue& lhs, const EvalValue& rhs);
 
   // Apply unary operation
-  EvalValue apply_unary_op(UnaryOpType op, const EvalValue& operand);
+  static EvalValue apply_unary_op(UnaryOpType op, const EvalValue& operand);
 
   const SymbolTable& symbols_;
   const FunctionRegistry& functions_;

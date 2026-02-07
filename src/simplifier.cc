@@ -1,5 +1,6 @@
 #include "spice_expr/visitor/simplifier.h"
 
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <vector>
@@ -43,11 +44,10 @@ void Simplifier::visit(const StringLiteral& node) {
 }
 
 void Simplifier::visit(const ArrayLiteral& node) {
-  std::vector<ExprNode*> simplified;
-  simplified.reserve(node.element_count());
-  for (const auto* elem : node.elements()) {
-    simplified.push_back(simplify(*elem));
-  }
+  const auto& elems = node.elements();
+  std::vector<ExprNode*> simplified(elems.size());
+  std::transform(elems.begin(), elems.end(), simplified.begin(),
+                 [this](const auto* elem) { return simplify(*elem); });
   result_ = arena_.make<ArrayLiteral>(std::move(simplified));
 }
 
@@ -80,10 +80,9 @@ void Simplifier::visit(const BinaryOp& node) {
       collect_operands(*right, node.op_type(), operands);
 
       // Only proceed if there are multiple constants to fold
-      int constant_count = 0;
-      for (const auto* op : operands) {
-        if (is_constant(*op)) ++constant_count;
-      }
+      auto constant_count = std::count_if(
+          operands.begin(), operands.end(),
+          [](const auto* op) { return is_constant(*op); });
 
       if (constant_count >= 2) {
         result_ = fold_constants(operands, node.op_type());
@@ -368,11 +367,10 @@ void Simplifier::visit(const UnaryOp& node) {
 }
 
 void Simplifier::visit(const FunctionCall& node) {
-  std::vector<ExprNode*> simplified;
-  simplified.reserve(node.argument_count());
-  for (const auto* arg : node.arguments()) {
-    simplified.push_back(simplify(*arg));
-  }
+  const auto& args = node.arguments();
+  std::vector<ExprNode*> simplified(args.size());
+  std::transform(args.begin(), args.end(), simplified.begin(),
+                 [this](const auto* arg) { return simplify(*arg); });
   result_ = arena_.make<FunctionCall>(node.name(), std::move(simplified));
 }
 

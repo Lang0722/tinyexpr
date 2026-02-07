@@ -1,6 +1,8 @@
 #include "spice_expr/ast/functions.h"
 
+#include <algorithm>
 #include <functional>
+#include <numeric>
 
 #include "spice_expr/ast/arena.h"
 #include "spice_expr/visitor/visitor.h"
@@ -18,20 +20,18 @@ void FunctionCall::accept(ConstExprVisitor& visitor) const {
 }
 
 ExprNode* FunctionCall::clone(ExprArena& arena) const {
-  std::vector<ExprNode*> clonedArgs;
-  clonedArgs.reserve(arguments_.size());
-  for (const auto* arg : arguments_) {
-    clonedArgs.push_back(arg->clone(arena));
-  }
+  std::vector<ExprNode*> clonedArgs(arguments_.size());
+  std::transform(arguments_.begin(), arguments_.end(), clonedArgs.begin(),
+                 [&arena](const auto* arg) { return arg->clone(arena); });
   return arena.make<FunctionCall>(name_, std::move(clonedArgs));
 }
 
 size_t FunctionCall::hash() const {
-  size_t h = std::hash<std::string>{}(name_);
-  for (const ExprNode* arg : arguments_) {
-    h = combineHash(h, arg->hash());
-  }
-  return h;
+  return std::accumulate(arguments_.begin(), arguments_.end(),
+                         std::hash<std::string>{}(name_),
+                         [](size_t h, const ExprNode* arg) {
+                           return combineHash(h, arg->hash());
+                         });
 }
 
 bool FunctionCall::equals(const ExprNode& other) const {
