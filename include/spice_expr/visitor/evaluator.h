@@ -7,8 +7,6 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
-#include <variant>
-
 #include "spice_expr/circuit/circuit_interface.h"
 #include "spice_expr/visitor/visitor.h"
 
@@ -18,8 +16,6 @@ class SymbolTable;
 class FunctionRegistry;
 class ExprNode;
 class ExprArena;
-class XTensor;
-
 class EvaluationError : public std::runtime_error {
  public:
   explicit EvaluationError(const std::string& msg) : std::runtime_error(msg) {}
@@ -90,24 +86,6 @@ class ComplexEvaluator : public ConstExprVisitor {
 };
 
 bool requires_complex_evaluation(const ExprNode& node);
-
-// Unified evaluation result type for array-aware evaluation
-using EvalValue = std::variant<double, std::complex<double>, XTensor>;
-
-// Helper functions for EvalValue operations
-struct EvalValueOps {
-  static bool is_scalar(const EvalValue& v);
-  static bool is_array(const EvalValue& v);
-  static bool is_real(const EvalValue& v);
-  static bool is_complex(const EvalValue& v);
-
-  static double to_real(const EvalValue& v);
-  static std::complex<double> to_complex(const EvalValue& v);
-  static XTensor to_array(const EvalValue& v);
-};
-
-// Detection function for array evaluation
-bool requires_array_evaluation(const ExprNode& node, const SymbolTable& symbols);
 
 }  // namespace spice_expr
 

@@ -1,12 +1,57 @@
 #include "spice_expr/array/xtensor.h"
 
+#include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace spice_expr {
 
+// Helper function implementations
+
+namespace detail {
+
+RealXTensor fmod(const RealXTensor& a, const RealXTensor& b) {
+  return tt::detail::binary_op(a, b,
+                               [](double x, double y) { return std::fmod(x, y); });
+}
+
+RealXTensor cast_to_double(const tt::tensor<uint8_t>& t) {
+  RealXTensor result(t.shape());
+  for (size_t i = 0; i < t.size(); ++i) {
+    result.flat(i) = static_cast<double>(t.flat(i));
+  }
+  return result;
+}
+
+ComplexXTensor cast_to_complex(const RealXTensor& t) {
+  ComplexXTensor result(t.shape());
+  for (size_t i = 0; i < t.size(); ++i) {
+    result.flat(i) = std::complex<double>(t.flat(i), 0.0);
+  }
+  return result;
+}
+
+RealXTensor extract_real(const ComplexXTensor& t) {
+  RealXTensor result(t.shape());
+  for (size_t i = 0; i < t.size(); ++i) {
+    result.flat(i) = t.flat(i).real();
+  }
+  return result;
+}
+
+RealXTensor extract_imag(const ComplexXTensor& t) {
+  RealXTensor result(t.shape());
+  for (size_t i = 0; i < t.size(); ++i) {
+    result.flat(i) = t.flat(i).imag();
+  }
+  return result;
+}
+
+}  // namespace detail
+
 // XTensor implementation
 
-XTensor::XTensor() : data_(RealXTensor::from_shape({0})) {}
+XTensor::XTensor() : data_(RealXTensor(tt::shape_t{0})) {}
 
 XTensor::~XTensor() = default;
 
@@ -17,14 +62,19 @@ XTensor::XTensor(const XTensor& other) = default;
 
 XTensor& XTensor::operator=(const XTensor& other) = default;
 
-XTensor::XTensor(const std::vector<double>& vec)
-    : data_(RealXTensor(xt::adapt(vec, {vec.size()}))) {}
+XTensor::XTensor(const std::vector<double>& vec) {
+  RealXTensor t(tt::shape_t{vec.size()});
+  std::copy(vec.begin(), vec.end(), t.data());
+  data_ = std::move(t);
+}
 
-XTensor::XTensor(const std::vector<std::complex<double>>& vec)
-    : data_(ComplexXTensor(xt::adapt(vec, {vec.size()}))) {}
+XTensor::XTensor(const std::vector<std::complex<double>>& vec) {
+  ComplexXTensor t(tt::shape_t{vec.size()});
+  std::copy(vec.begin(), vec.end(), t.data());
+  data_ = std::move(t);
+}
 
-XTensor::XTensor(std::initializer_list<double> values)
-    : data_(RealXTensor(xt::adapt(std::vector<double>(values), {values.size()}))) {}
+XTensor::XTensor(std::initializer_list<double> values) : data_(RealXTensor(values)) {}
 
 XTensor::XTensor(RealXTensor arr) : data_(std::move(arr)) {}
 
@@ -34,14 +84,14 @@ bool XTensor::is_real() const { return std::holds_alternative<RealXTensor>(data_
 
 bool XTensor::is_complex() const { return std::holds_alternative<ComplexXTensor>(data_); }
 
-bool XTensor::is_scalar() const { return ndim() == 0; }
+bool XTensor::is_scalar() const { return size() == 1; }
 
 size_t XTensor::size() const {
   return std::visit([](const auto& arr) { return arr.size(); }, data_);
 }
 
 size_t XTensor::ndim() const {
-  return std::visit([](const auto& arr) { return arr.dimension(); }, data_);
+  return std::visit([](const auto& arr) { return arr.ndim(); }, data_);
 }
 
 std::vector<size_t> XTensor::shape() const {
@@ -71,41 +121,40 @@ XTensor XTensor::to_complex() const {
   if (is_complex()) {
     return *this;
   }
-  ComplexXTensor converted = xt::eval(xt::cast<std::complex<double>>(real()));
-  return XTensor(std::move(converted));
+  return XTensor(detail::cast_to_complex(real()));
 }
 
 double XTensor::sum_real() const {
   if (is_real()) {
-    return xt::sum(real())();
+    return tt::sum(real());
   }
-  return std::real(xt::sum(complex())());
+  return std::real(tt::sum(complex()));
 }
 
 std::complex<double> XTensor::sum_complex() const {
   if (is_real()) {
-    return std::complex<double>(xt::sum(real())(), 0.0);
+    return std::complex<double>(tt::sum(real()), 0.0);
   }
-  return xt::sum(complex())();
+  return tt::sum(complex());
 }
 
 double XTensor::mean_real() const {
   if (is_real()) {
-    return xt::mean(real())();
+    return tt::mean(real());
   }
-  return std::real(xt::mean(complex())());
+  return std::real(tt::mean(complex()));
 }
 
 double XTensor::min_real() const {
   if (is_real()) {
-    return xt::amin(real())();
+    return tt::min(real());
   }
   throw XTensorError("min() not defined for complex arrays");
 }
 
 double XTensor::max_real() const {
   if (is_real()) {
-    return xt::amax(real())();
+    return tt::max(real());
   }
   throw XTensorError("max() not defined for complex arrays");
 }
@@ -138,41 +187,33 @@ const ComplexXTensor& XTensor::complex() const {
   return std::get<ComplexXTensor>(data_);
 }
 
-// Static scalar factory functions (0-dimensional tensors)
-XTensor XTensor::scalar(double value) {
-  // Create 0-D tensor with empty shape {}
-  RealXTensor arr = RealXTensor::from_shape({});
-  arr() = value;
-  return XTensor(std::move(arr));
-}
+// Static scalar factory functions (1-D tensors with shape {1})
+XTensor XTensor::scalar(double value) { return XTensor(RealXTensor({value})); }
 
 XTensor XTensor::scalar(std::complex<double> value) {
-  // Create 0-D tensor with empty shape {}
-  ComplexXTensor arr = ComplexXTensor::from_shape({});
-  arr() = value;
-  return XTensor(std::move(arr));
+  return XTensor(ComplexXTensor({value}));
 }
 
 // Factory functions
 
 XTensor linspace(double start, double stop, size_t num) {
-  return XTensor(RealXTensor(xt::linspace<double>(start, stop, num)));
+  return XTensor(tt::linspace<double>(start, stop, num));
 }
 
 XTensor arange(double start, double stop, double step) {
-  return XTensor(RealXTensor(xt::arange<double>(start, stop, step)));
+  return XTensor(tt::arange<double>(start, stop, step));
 }
 
-XTensor zeros(size_t n) { return XTensor(RealXTensor(xt::zeros<double>({n}))); }
+XTensor zeros(size_t n) { return XTensor(tt::zeros<double>(tt::shape_t{n})); }
 
 XTensor zeros(const std::vector<size_t>& shape) {
-  return XTensor(RealXTensor(xt::zeros<double>(shape)));
+  return XTensor(tt::zeros<double>(tt::shape_t(shape.begin(), shape.end())));
 }
 
-XTensor ones(size_t n) { return XTensor(RealXTensor(xt::ones<double>({n}))); }
+XTensor ones(size_t n) { return XTensor(tt::ones<double>(tt::shape_t{n})); }
 
 XTensor ones(const std::vector<size_t>& shape) {
-  return XTensor(RealXTensor(xt::ones<double>(shape)));
+  return XTensor(tt::ones<double>(tt::shape_t(shape.begin(), shape.end())));
 }
 
 }  // namespace spice_expr

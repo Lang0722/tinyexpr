@@ -2,39 +2,15 @@ cmake_minimum_required(VERSION 3.14)
 cmake_policy(SET CMP0077 NEW)
 project(spice_expr VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Export compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# xtensor for numpy-like array operations
-# Fetch compatible versions of xtl and xtensor
-include(FetchContent)
-set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-FetchContent_Declare(
-    xtl
-    GIT_REPOSITORY https://github.com/xtensor-stack/xtl.git
-    GIT_TAG 0.8.0
-)
-FetchContent_Declare(
-    xtensor
-    GIT_REPOSITORY https://github.com/xtensor-stack/xtensor.git
-    GIT_TAG master
-)
-FetchContent_MakeAvailable(xtl xtensor)
-
-# Optional: SIMD acceleration via xsimd
-option(SPICE_EXPR_USE_XSIMD "Enable SIMD acceleration via xsimd" OFF)
-if(SPICE_EXPR_USE_XSIMD)
-    FetchContent_Declare(
-        xsimd
-        GIT_REPOSITORY https://github.com/xtensor-stack/xsimd.git
-        GIT_TAG 12.1.1
-    )
-    FetchContent_MakeAvailable(xsimd)
-endif()
+# tinytensor for numpy-like array operations (lightweight, header-only C++20)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../tinytensor tinytensor)
 
 # AST library (shared dependency)
 set(SPICE_EXPR_AST_SOURCES
@@ -77,17 +53,13 @@ set(SPICE_EXPR_CORE_SOURCES
     src/circuit_interface.cc
     src/array_value.cc
     src/xtensor.cc
-    src/array_evaluator.cc
+    src/tensor_evaluator.cc
     src/expression_engine.cc
 )
 
 add_library(spice_expr_core STATIC ${SPICE_EXPR_CORE_SOURCES})
 target_include_directories(spice_expr_core PUBLIC include)
-target_link_libraries(spice_expr_core PUBLIC spice_expr_ast xtensor)
-if(SPICE_EXPR_USE_XSIMD)
-    target_link_libraries(spice_expr_core PUBLIC xsimd)
-    target_compile_definitions(spice_expr_core PUBLIC XTENSOR_USE_XSIMD)
-endif()
+target_link_libraries(spice_expr_core PUBLIC spice_expr_ast tinytensor::tinytensor)
 target_compile_options(spice_expr_core PRIVATE -Wall -Wextra -Wpedantic)
 
 # Combined library (backward compatible)
@@ -115,7 +87,7 @@ set(TEST_SOURCES
     tests/function_tests.cc
     tests/array_tests.cc
     tests/xtensor_tests.cc
-    tests/array_evaluator_tests.cc
+    tests/tensor_evaluator_tests.cc
     tests/parser_tests.cc
     tests/differentiator_tests.cc
     tests/simplifier_tests.cc

@@ -10,12 +10,13 @@
 #include "spice_expr/function/function_registry.h"
 #include "spice_expr/parser/parser.h"
 #include "spice_expr/symbol/symbol_table.h"
-#include "spice_expr/visitor/array_evaluator.h"
+#include "spice_expr/visitor/evaluator.h"
+#include "spice_expr/visitor/tensor_evaluator.h"
 
 namespace spice_expr {
 namespace {
 
-class ArrayEvaluatorTest : public ::testing::Test {
+class TensorEvaluatorTest : public ::testing::Test {
  protected:
   void SetUp() override {
     arena_ = std::make_unique<ExprArena>();
@@ -24,23 +25,22 @@ class ArrayEvaluatorTest : public ::testing::Test {
     circuit_ = std::make_unique<NullCircuitInterface>();
   }
 
-  EvalValue evaluate(const std::string& expr_str) {
+  XTensor evaluate(const std::string& expr_str) {
     ExprNode* expr = parse_expression(expr_str, *arena_);
-    ArrayEvaluator evaluator(*symbols_, *functions_, *circuit_, arena_.get());
+    TensorEvaluator evaluator(*symbols_, *functions_, *circuit_, arena_.get());
     return evaluator.evaluate(*expr);
   }
 
   double evaluate_real(const std::string& expr_str) {
-    EvalValue val = evaluate(expr_str);
-    return EvalValueOps::to_real(val);
+    XTensor val = evaluate(expr_str);
+    EXPECT_TRUE(val.is_scalar()) << "Expected scalar result";
+    return val.get_real_at(0);
   }
 
   XTensor evaluate_array(const std::string& expr_str) {
-    EvalValue val = evaluate(expr_str);
-    if (!EvalValueOps::is_array(val)) {
-      throw std::runtime_error("Expected array result");
-    }
-    return std::get<XTensor>(val);
+    XTensor val = evaluate(expr_str);
+    EXPECT_FALSE(val.is_scalar()) << "Expected array result";
+    return val;
   }
 
   std::unique_ptr<ExprArena> arena_;
@@ -51,19 +51,19 @@ class ArrayEvaluatorTest : public ::testing::Test {
 
 // Basic scalar evaluation (should still work)
 
-TEST_F(ArrayEvaluatorTest, ScalarLiteral) {
+TEST_F(TensorEvaluatorTest, ScalarLiteral) {
   double result = evaluate_real("42.0");
   EXPECT_DOUBLE_EQ(result, 42.0);
 }
 
-TEST_F(ArrayEvaluatorTest, ScalarArithmetic) {
+TEST_F(TensorEvaluatorTest, ScalarArithmetic) {
   EXPECT_DOUBLE_EQ(evaluate_real("2 + 3"), 5.0);
   EXPECT_DOUBLE_EQ(evaluate_real("10 - 4"), 6.0);
   EXPECT_DOUBLE_EQ(evaluate_real("3 * 4"), 12.0);
   EXPECT_DOUBLE_EQ(evaluate_real("15 / 3"), 5.0);
 }
 
-TEST_F(ArrayEvaluatorTest, ScalarFunctions) {
+TEST_F(TensorEvaluatorTest, ScalarFunctions) {
   EXPECT_NEAR(evaluate_real("sin(0)"), 0.0, 1e-10);
   EXPECT_NEAR(evaluate_real("cos(0)"), 1.0, 1e-10);
   EXPECT_NEAR(evaluate_real("sqrt(4)"), 2.0, 1e-10);
@@ -72,7 +72,7 @@ TEST_F(ArrayEvaluatorTest, ScalarFunctions) {
 
 // Array creation functions
 
-TEST_F(ArrayEvaluatorTest, Linspace) {
+TEST_F(TensorEvaluatorTest, Linspace) {
   XTensor arr = evaluate_array("linspace(0, 10, 11)");
 
   EXPECT_EQ(arr.size(), 11);
@@ -81,7 +81,7 @@ TEST_F(ArrayEvaluatorTest, Linspace) {
   EXPECT_DOUBLE_EQ(arr.get_real_at(5), 5.0);
 }
 
-TEST_F(ArrayEvaluatorTest, Arange) {
+TEST_F(TensorEvaluatorTest, Arange) {
   XTensor arr = evaluate_array("arange(0, 5, 1)");
 
   EXPECT_EQ(arr.size(), 5);
@@ -89,7 +89,7 @@ TEST_F(ArrayEvaluatorTest, Arange) {
   EXPECT_DOUBLE_EQ(arr.get_real_at(4), 4.0);
 }
 
-TEST_F(ArrayEvaluatorTest, Zeros) {
+TEST_F(TensorEvaluatorTest, Zeros) {
   XTensor arr = evaluate_array("zeros(5)");
 
   EXPECT_EQ(arr.size(), 5);
@@ -98,7 +98,7 @@ TEST_F(ArrayEvaluatorTest, Zeros) {
   }
 }
 
-TEST_F(ArrayEvaluatorTest, Ones) {
+TEST_F(TensorEvaluatorTest, Ones) {
   XTensor arr = evaluate_array("ones(5)");
 
   EXPECT_EQ(arr.size(), 5);
@@ -109,7 +109,7 @@ TEST_F(ArrayEvaluatorTest, Ones) {
 
 // Array with scalar operations (broadcasting)
 
-TEST_F(ArrayEvaluatorTest, ArrayPlusScalar) {
+TEST_F(TensorEvaluatorTest, ArrayPlusScalar) {
   XTensor arr = evaluate_array("linspace(0, 4, 5) + 10");
 
   EXPECT_EQ(arr.size(), 5);
@@ -117,7 +117,7 @@ TEST_F(ArrayEvaluatorTest, ArrayPlusScalar) {
   EXPECT_DOUBLE_EQ(arr.get_real_at(4), 14.0);
 }
 
-TEST_F(ArrayEvaluatorTest, ScalarPlusArray) {
+TEST_F(TensorEvaluatorTest, ScalarPlusArray) {
   XTensor arr = evaluate_array("10 + linspace(0, 4, 5)");
 
   EXPECT_EQ(arr.size(), 5);
@@ -125,7 +125,7 @@ TEST_F(ArrayEvaluatorTest, ScalarPlusArray) {
   EXPECT_DOUBLE_EQ(arr.get_real_at(4), 14.0);
 }
 
-TEST_F(ArrayEvaluatorTest, ArrayTimesScalar) {
+TEST_F(TensorEvaluatorTest, ArrayTimesScalar) {
   XTensor arr = evaluate_array("linspace(0, 4, 5) * 2");
 
   EXPECT_EQ(arr.size(), 5);
@@ -134,7 +134,7 @@ TEST_F(ArrayEvaluatorTest, ArrayTimesScalar) {
   EXPECT_DOUBLE_EQ(arr.get_real_at(4), 8.0);
 }
 
-TEST_F(ArrayEvaluatorTest, ArrayDivideScalar) {
+TEST_F(TensorEvaluatorTest, ArrayDivideScalar) {
   XTensor arr = evaluate_array("linspace(0, 10, 5) / 2");
 
   EXPECT_EQ(arr.size(), 5);
@@ -144,51 +144,51 @@ TEST_F(ArrayEvaluatorTest, ArrayDivideScalar) {
 
 // Reduction functions
 
-TEST_F(ArrayEvaluatorTest, Sum) {
+TEST_F(TensorEvaluatorTest, Sum) {
   double result = evaluate_real("sum(linspace(1, 5, 5))");
   EXPECT_DOUBLE_EQ(result, 15.0);  // 1+2+3+4+5
 }
 
-TEST_F(ArrayEvaluatorTest, Mean) {
+TEST_F(TensorEvaluatorTest, Mean) {
   double result = evaluate_real("mean(linspace(1, 5, 5))");
   EXPECT_DOUBLE_EQ(result, 3.0);
 }
 
-TEST_F(ArrayEvaluatorTest, Min) {
+TEST_F(TensorEvaluatorTest, Min) {
   double result = evaluate_real("min(linspace(5, 1, 5))");
   EXPECT_DOUBLE_EQ(result, 1.0);
 }
 
-TEST_F(ArrayEvaluatorTest, Max) {
+TEST_F(TensorEvaluatorTest, Max) {
   double result = evaluate_real("max(linspace(1, 5, 5))");
   EXPECT_DOUBLE_EQ(result, 5.0);
 }
 
-TEST_F(ArrayEvaluatorTest, Len) {
+TEST_F(TensorEvaluatorTest, Len) {
   double result = evaluate_real("len(linspace(0, 10, 101))");
   EXPECT_DOUBLE_EQ(result, 101.0);
 }
 
 // Element-wise math functions on arrays
 
-TEST_F(ArrayEvaluatorTest, SinArray) {
+TEST_F(TensorEvaluatorTest, SinArray) {
   XTensor arr = evaluate_array("sin(linspace(0, 3.14159265359, 5))");
 
   EXPECT_EQ(arr.size(), 5);
   EXPECT_NEAR(arr.get_real_at(0), 0.0, 1e-10);
-  EXPECT_NEAR(arr.get_real_at(4), 0.0, 1e-5);  // sin(pi) ≈ 0
+  EXPECT_NEAR(arr.get_real_at(4), 0.0, 1e-5);  // sin(pi) ~ 0
 }
 
-TEST_F(ArrayEvaluatorTest, ExpArray) {
+TEST_F(TensorEvaluatorTest, ExpArray) {
   XTensor arr = evaluate_array("exp(linspace(0, 2, 3))");
 
   EXPECT_EQ(arr.size(), 3);
-  EXPECT_NEAR(arr.get_real_at(0), 1.0, 1e-10);        // exp(0) = 1
-  EXPECT_NEAR(arr.get_real_at(1), std::exp(1.0), 1e-10);  // exp(1)
-  EXPECT_NEAR(arr.get_real_at(2), std::exp(2.0), 1e-10);  // exp(2)
+  EXPECT_NEAR(arr.get_real_at(0), 1.0, 1e-10);
+  EXPECT_NEAR(arr.get_real_at(1), std::exp(1.0), 1e-10);
+  EXPECT_NEAR(arr.get_real_at(2), std::exp(2.0), 1e-10);
 }
 
-TEST_F(ArrayEvaluatorTest, SqrtArray) {
+TEST_F(TensorEvaluatorTest, SqrtArray) {
   XTensor arr = evaluate_array("sqrt(linspace(0, 4, 5))");
 
   EXPECT_EQ(arr.size(), 5);
@@ -196,7 +196,7 @@ TEST_F(ArrayEvaluatorTest, SqrtArray) {
   EXPECT_DOUBLE_EQ(arr.get_real_at(4), 2.0);
 }
 
-TEST_F(ArrayEvaluatorTest, AbsArray) {
+TEST_F(TensorEvaluatorTest, AbsArray) {
   XTensor arr = evaluate_array("abs(linspace(-2, 2, 5))");
 
   EXPECT_EQ(arr.size(), 5);
@@ -207,7 +207,7 @@ TEST_F(ArrayEvaluatorTest, AbsArray) {
 
 // Array from symbol table
 
-TEST_F(ArrayEvaluatorTest, ArrayFromSymbolTable) {
+TEST_F(TensorEvaluatorTest, ArrayFromSymbolTable) {
   std::vector<double> data = {1.0, 2.0, 3.0, 4.0, 5.0};
   symbols_->define_array("mydata", data);
 
@@ -216,7 +216,7 @@ TEST_F(ArrayEvaluatorTest, ArrayFromSymbolTable) {
   EXPECT_DOUBLE_EQ(arr.get_real_at(2), 3.0);
 }
 
-TEST_F(ArrayEvaluatorTest, ArrayOperationsFromSymbolTable) {
+TEST_F(TensorEvaluatorTest, ArrayOperationsFromSymbolTable) {
   std::vector<double> data = {1.0, 2.0, 3.0, 4.0, 5.0};
   symbols_->define_array("mydata", data);
 
@@ -224,7 +224,7 @@ TEST_F(ArrayEvaluatorTest, ArrayOperationsFromSymbolTable) {
   EXPECT_DOUBLE_EQ(result, 30.0);  // (1+2+3+4+5)*2
 }
 
-TEST_F(ArrayEvaluatorTest, ComplexArrayFromSymbolTable) {
+TEST_F(TensorEvaluatorTest, ComplexArrayFromSymbolTable) {
   std::vector<std::complex<double>> data = {{1.0, 2.0}, {3.0, 4.0}, {5.0, 6.0}};
   symbols_->define_array("cdata", data);
 
@@ -239,8 +239,7 @@ TEST_F(ArrayEvaluatorTest, ComplexArrayFromSymbolTable) {
 
 // S-parameter style calculations (post-processing use case)
 
-TEST_F(ArrayEvaluatorTest, SParameterMagnitudeDb) {
-  // Simulate S11 data
+TEST_F(TensorEvaluatorTest, SParameterMagnitudeDb) {
   std::vector<std::complex<double>> s11 = {
       {0.1, 0.2}, {0.15, 0.25}, {0.12, 0.18}, {0.08, 0.15}, {0.05, 0.1}};
   symbols_->define_array("s11", s11);
@@ -251,18 +250,15 @@ TEST_F(ArrayEvaluatorTest, SParameterMagnitudeDb) {
   EXPECT_EQ(s11_db.size(), 5);
   EXPECT_TRUE(s11_db.is_real());
 
-  // Verify first value: |0.1 + 0.2j| = sqrt(0.01 + 0.04) = sqrt(0.05) ≈ 0.2236
-  // 20 * log10(0.2236) ≈ -13.01 dB
   double expected = 20.0 * std::log10(std::abs(std::complex<double>(0.1, 0.2)));
   EXPECT_NEAR(s11_db.get_real_at(0), expected, 1e-10);
 }
 
-TEST_F(ArrayEvaluatorTest, SParameterAverageLoss) {
+TEST_F(TensorEvaluatorTest, SParameterAverageLoss) {
   std::vector<std::complex<double>> s11 = {
       {0.1, 0.2}, {0.15, 0.25}, {0.12, 0.18}, {0.08, 0.15}, {0.05, 0.1}};
   symbols_->define_array("s11", s11);
 
-  // Calculate average magnitude
   double avg_mag = evaluate_real("mean(abs(s11))");
   EXPECT_GT(avg_mag, 0.0);
   EXPECT_LT(avg_mag, 1.0);
@@ -270,53 +266,54 @@ TEST_F(ArrayEvaluatorTest, SParameterAverageLoss) {
 
 // Chained operations
 
-TEST_F(ArrayEvaluatorTest, ChainedOperations) {
+TEST_F(TensorEvaluatorTest, ChainedOperations) {
   XTensor arr = evaluate_array("sqrt(abs(linspace(-4, 4, 9)))");
 
   EXPECT_EQ(arr.size(), 9);
-  EXPECT_DOUBLE_EQ(arr.get_real_at(0), 2.0);  // sqrt(abs(-4)) = 2
-  EXPECT_DOUBLE_EQ(arr.get_real_at(4), 0.0);  // sqrt(abs(0)) = 0
-  EXPECT_DOUBLE_EQ(arr.get_real_at(8), 2.0);  // sqrt(abs(4)) = 2
+  EXPECT_DOUBLE_EQ(arr.get_real_at(0), 2.0);
+  EXPECT_DOUBLE_EQ(arr.get_real_at(4), 0.0);
+  EXPECT_DOUBLE_EQ(arr.get_real_at(8), 2.0);
 }
 
 // Error cases
 
-TEST_F(ArrayEvaluatorTest, LinspaceWrongArgCount) {
+TEST_F(TensorEvaluatorTest, LinspaceWrongArgCount) {
   EXPECT_THROW(evaluate("linspace(0, 10)"), EvaluationError);
 }
 
-TEST_F(ArrayEvaluatorTest, UndefinedArray) {
+TEST_F(TensorEvaluatorTest, UndefinedArray) {
   EXPECT_THROW(evaluate("undefined_array"), EvaluationError);
 }
 
-// EvalValueOps tests
+// XTensor type query tests (replaces old EvalValueOps tests)
 
-TEST_F(ArrayEvaluatorTest, EvalValueOpsScalar) {
-  EvalValue scalar_val = 42.0;
+TEST_F(TensorEvaluatorTest, ScalarTensorQueries) {
+  XTensor scalar_val = XTensor::scalar(42.0);
 
-  EXPECT_TRUE(EvalValueOps::is_scalar(scalar_val));
-  EXPECT_FALSE(EvalValueOps::is_array(scalar_val));
-  EXPECT_TRUE(EvalValueOps::is_real(scalar_val));
-  EXPECT_DOUBLE_EQ(EvalValueOps::to_real(scalar_val), 42.0);
+  EXPECT_TRUE(scalar_val.is_scalar());
+  EXPECT_TRUE(scalar_val.is_real());
+  EXPECT_FALSE(scalar_val.is_complex());
+  EXPECT_DOUBLE_EQ(scalar_val.get_real_at(0), 42.0);
 }
 
-TEST_F(ArrayEvaluatorTest, EvalValueOpsComplex) {
-  EvalValue complex_val = std::complex<double>(3.0, 4.0);
+TEST_F(TensorEvaluatorTest, ComplexScalarTensorQueries) {
+  XTensor complex_val = XTensor::scalar(std::complex<double>(3.0, 4.0));
 
-  EXPECT_TRUE(EvalValueOps::is_scalar(complex_val));
-  EXPECT_FALSE(EvalValueOps::is_array(complex_val));
-  EXPECT_TRUE(EvalValueOps::is_complex(complex_val));
+  EXPECT_TRUE(complex_val.is_scalar());
+  EXPECT_FALSE(complex_val.is_real());
+  EXPECT_TRUE(complex_val.is_complex());
 
-  auto c = EvalValueOps::to_complex(complex_val);
+  auto c = complex_val.get_complex_at(0);
   EXPECT_DOUBLE_EQ(c.real(), 3.0);
   EXPECT_DOUBLE_EQ(c.imag(), 4.0);
 }
 
-TEST_F(ArrayEvaluatorTest, EvalValueOpsArray) {
-  EvalValue array_val = evaluate("linspace(0, 10, 11)");
+TEST_F(TensorEvaluatorTest, ArrayTensorQueries) {
+  XTensor array_val = evaluate("linspace(0, 10, 11)");
 
-  EXPECT_FALSE(EvalValueOps::is_scalar(array_val));
-  EXPECT_TRUE(EvalValueOps::is_array(array_val));
+  EXPECT_FALSE(array_val.is_scalar());
+  EXPECT_TRUE(array_val.is_real());
+  EXPECT_EQ(array_val.size(), 11);
 }
 
 }  // namespace

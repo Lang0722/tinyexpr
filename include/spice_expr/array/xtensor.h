@@ -6,14 +6,7 @@
 #include <variant>
 #include <vector>
 
-// xtensor master uses modular headers in subdirectories
-#include <xtensor/containers/xarray.hpp>
-#include <xtensor/containers/xadapt.hpp>
-#include <xtensor/generators/xbuilder.hpp>
-#include <xtensor/core/xmath.hpp>
-#include <xtensor/views/xview.hpp>
-#include <xtensor/io/xio.hpp>
-#include <xtensor/misc/xcomplex.hpp>
+#include <tinytensor/tinytensor.hpp>
 
 namespace spice_expr {
 
@@ -22,11 +15,31 @@ class XTensorError : public std::runtime_error {
   explicit XTensorError(const std::string& msg) : std::runtime_error(msg) {}
 };
 
-// Type aliases for xtensor arrays
-using RealXTensor = xt::xarray<double>;
-using ComplexXTensor = xt::xarray<std::complex<double>>;
+// Type aliases for tensor arrays (backed by tinytensor)
+using RealXTensor = tt::tensor<double>;
+using ComplexXTensor = tt::tensor<std::complex<double>>;
 
-// Type-erased wrapper for xtensor arrays supporting both real and complex types
+// Helper functions for operations not directly available in tinytensor
+namespace detail {
+
+// Element-wise floating-point modulo
+RealXTensor fmod(const RealXTensor& a, const RealXTensor& b);
+
+// Cast tensor<uint8_t> (comparison results) to tensor<double>
+RealXTensor cast_to_double(const tt::tensor<uint8_t>& t);
+
+// Cast real tensor to complex tensor
+ComplexXTensor cast_to_complex(const RealXTensor& t);
+
+// Extract real parts from complex tensor
+RealXTensor extract_real(const ComplexXTensor& t);
+
+// Extract imaginary parts from complex tensor
+RealXTensor extract_imag(const ComplexXTensor& t);
+
+}  // namespace detail
+
+// Type-erased wrapper for tensor arrays supporting both real and complex types
 class XTensor {
  public:
   XTensor();
@@ -47,18 +60,18 @@ class XTensor {
   // Construction from initializer list
   XTensor(std::initializer_list<double> values);
 
-  // Construction from xtensor arrays
+  // Construction from tensor arrays
   explicit XTensor(RealXTensor arr);
   explicit XTensor(ComplexXTensor arr);
 
-  // Scalar construction (0-dimensional tensors)
+  // Scalar construction (1-D tensors with shape {1})
   static XTensor scalar(double value);
   static XTensor scalar(std::complex<double> value);
 
   // Type queries
   bool is_real() const;
   bool is_complex() const;
-  bool is_scalar() const;  // True if 0-D tensor (single element that broadcasts)
+  bool is_scalar() const;  // True if single-element tensor that broadcasts
   bool is_empty() const { return size() == 0; }
 
   // Shape information
