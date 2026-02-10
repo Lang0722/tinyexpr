@@ -11,6 +11,99 @@
 
 namespace spice_expr {
 
+namespace {
+
+// Returns right binding power for prefix operators, or 0 if not prefix.
+int prefix_bp(TokenType type) {
+  switch (type) {
+    case TokenType::Minus:
+    case TokenType::Plus:
+    case TokenType::Not:
+      return 17;
+    default:
+      return 0;
+  }
+}
+
+// Returns {left_bp, right_bp} for infix operators, or {0, 0} if not infix.
+std::pair<int, int> infix_bp(TokenType type) {
+  switch (type) {
+    case TokenType::Question:
+      return {2, 1};
+    case TokenType::Or:
+      return {3, 4};
+    case TokenType::And:
+      return {5, 6};
+    case TokenType::Equal:
+    case TokenType::NotEqual:
+      return {7, 8};
+    case TokenType::Less:
+    case TokenType::LessEqual:
+    case TokenType::Greater:
+    case TokenType::GreaterEqual:
+      return {9, 10};
+    case TokenType::Plus:
+    case TokenType::Minus:
+      return {11, 12};
+    case TokenType::Star:
+    case TokenType::Slash:
+    case TokenType::Percent:
+      return {13, 14};
+    case TokenType::Power:
+      return {16, 15};
+    default:
+      return {0, 0};
+  }
+}
+
+// Returns left binding power for postfix operators, or 0 if not postfix.
+int postfix_bp(TokenType type) {
+  switch (type) {
+    case TokenType::LBracket:
+      return 19;
+    default:
+      return 0;
+  }
+}
+
+// Maps infix TokenType to BinaryOpType.
+BinaryOpType token_to_binop(TokenType type) {
+  switch (type) {
+    case TokenType::Or:
+      return BinaryOpType::LogicalOr;
+    case TokenType::And:
+      return BinaryOpType::LogicalAnd;
+    case TokenType::Equal:
+      return BinaryOpType::Equal;
+    case TokenType::NotEqual:
+      return BinaryOpType::NotEqual;
+    case TokenType::Less:
+      return BinaryOpType::Less;
+    case TokenType::LessEqual:
+      return BinaryOpType::LessEqual;
+    case TokenType::Greater:
+      return BinaryOpType::Greater;
+    case TokenType::GreaterEqual:
+      return BinaryOpType::GreaterEqual;
+    case TokenType::Plus:
+      return BinaryOpType::Add;
+    case TokenType::Minus:
+      return BinaryOpType::Subtract;
+    case TokenType::Star:
+      return BinaryOpType::Multiply;
+    case TokenType::Slash:
+      return BinaryOpType::Divide;
+    case TokenType::Percent:
+      return BinaryOpType::Modulo;
+    case TokenType::Power:
+      return BinaryOpType::Power;
+    default:
+      return BinaryOpType::Add;  // unreachable
+  }
+}
+
+}  // namespace
+
 Parser::Parser(const std::string& input, ExprArena& arena)
     : lexer_(input), arena_(arena), current_(TokenType::Error, "", 0, 0), hasError_(false) {
   current_ = lexer_.next_token();
@@ -21,168 +114,60 @@ ExprNode* Parser::parse_expression() {
 }
 
 ExprNode* Parser::expression() {
-  return ternary();
+  return expr_bp(0);
 }
 
-ExprNode* Parser::ternary() {
-  ExprNode* expr = logical_or();
-
-  if (match(TokenType::Question)) {
-    ExprNode* trueExpr = expression();
-    consume(TokenType::Colon, "Expected ':' in ternary expression");
-    ExprNode* falseExpr = expression();
-    expr = arena_.make<TernaryConditional>(expr, trueExpr, falseExpr);
+ExprNode* Parser::expr_bp(int min_bp) {
+  // --- Prefix / atom ---
+  ExprNode* lhs;
+  int r_bp = prefix_bp(current_.type);
+  if (r_bp > 0) {
+    TokenType op = current_.type;
+    advance();
+    ExprNode* rhs = expr_bp(r_bp);
+    if (op == TokenType::Minus)
+      lhs = arena_.make<UnaryOp>(UnaryOpType::Negate, rhs);
+    else if (op == TokenType::Not)
+      lhs = arena_.make<UnaryOp>(UnaryOpType::LogicalNot, rhs);
+    else  // unary +
+      lhs = rhs;
+  } else {
+    lhs = primary();
   }
 
-  return expr;
-}
-
-ExprNode* Parser::logical_or() {
-  ExprNode* expr = logical_and();
-
-  while (match(TokenType::Or)) {
-    ExprNode* right = logical_and();
-    expr = arena_.make<BinaryOp>(BinaryOpType::LogicalOr, expr, right);
-  }
-
-  return expr;
-}
-
-ExprNode* Parser::logical_and() {
-  ExprNode* expr = equality();
-
-  while (match(TokenType::And)) {
-    ExprNode* right = equality();
-    expr = arena_.make<BinaryOp>(BinaryOpType::LogicalAnd, expr, right);
-  }
-
-  return expr;
-}
-
-ExprNode* Parser::equality() {
-  ExprNode* expr = comparison();
-
-  while (true) {
-    if (match(TokenType::Equal)) {
-      ExprNode* right = comparison();
-      expr = arena_.make<BinaryOp>(BinaryOpType::Equal, expr, right);
-    } else if (match(TokenType::NotEqual)) {
-      ExprNode* right = comparison();
-      expr = arena_.make<BinaryOp>(BinaryOpType::NotEqual, expr, right);
-    } else {
-      break;
-    }
-  }
-
-  return expr;
-}
-
-ExprNode* Parser::comparison() {
-  ExprNode* expr = additive();
-
-  while (true) {
-    if (match(TokenType::Less)) {
-      ExprNode* right = additive();
-      expr = arena_.make<BinaryOp>(BinaryOpType::Less, expr, right);
-    } else if (match(TokenType::LessEqual)) {
-      ExprNode* right = additive();
-      expr = arena_.make<BinaryOp>(BinaryOpType::LessEqual, expr, right);
-    } else if (match(TokenType::Greater)) {
-      ExprNode* right = additive();
-      expr = arena_.make<BinaryOp>(BinaryOpType::Greater, expr, right);
-    } else if (match(TokenType::GreaterEqual)) {
-      ExprNode* right = additive();
-      expr = arena_.make<BinaryOp>(BinaryOpType::GreaterEqual, expr, right);
-    } else {
-      break;
-    }
-  }
-
-  return expr;
-}
-
-ExprNode* Parser::additive() {
-  ExprNode* expr = multiplicative();
-
-  while (true) {
-    if (match(TokenType::Plus)) {
-      ExprNode* right = multiplicative();
-      expr = arena_.make<BinaryOp>(BinaryOpType::Add, expr, right);
-    } else if (match(TokenType::Minus)) {
-      ExprNode* right = multiplicative();
-      expr = arena_.make<BinaryOp>(BinaryOpType::Subtract, expr, right);
-    } else {
-      break;
-    }
-  }
-
-  return expr;
-}
-
-ExprNode* Parser::multiplicative() {
-  ExprNode* expr = power();
-
-  while (true) {
-    if (match(TokenType::Star)) {
-      ExprNode* right = power();
-      expr = arena_.make<BinaryOp>(BinaryOpType::Multiply, expr, right);
-    } else if (match(TokenType::Slash)) {
-      ExprNode* right = power();
-      expr = arena_.make<BinaryOp>(BinaryOpType::Divide, expr, right);
-    } else if (match(TokenType::Percent)) {
-      ExprNode* right = power();
-      expr = arena_.make<BinaryOp>(BinaryOpType::Modulo, expr, right);
-    } else {
-      break;
-    }
-  }
-
-  return expr;
-}
-
-ExprNode* Parser::power() {
-  ExprNode* expr = unary();
-
-  if (match(TokenType::Power)) {
-    ExprNode* right = power();
-    expr = arena_.make<BinaryOp>(BinaryOpType::Power, expr, right);
-  }
-
-  return expr;
-}
-
-ExprNode* Parser::unary() {
-  if (match(TokenType::Minus)) {
-    ExprNode* operand = unary();
-    return arena_.make<UnaryOp>(UnaryOpType::Negate, operand);
-  }
-
-  if (match(TokenType::Plus)) {
-    return unary();
-  }
-
-  if (match(TokenType::Not)) {
-    ExprNode* operand = unary();
-    return arena_.make<UnaryOp>(UnaryOpType::LogicalNot, operand);
-  }
-
-  return postfix();
-}
-
-ExprNode* Parser::postfix() {
-  ExprNode* expr = primary();
-
-  while (true) {
-    if (match(TokenType::LBracket)) {
-      ExprNode* index = expression();
+  // --- Postfix / infix loop ---
+  for (;;) {
+    // Postfix: array indexing
+    int post_bp = postfix_bp(current_.type);
+    if (post_bp > 0) {
+      if (post_bp < min_bp) break;
+      advance();  // consume '['
+      ExprNode* index = expr_bp(0);
       consume(TokenType::RBracket, "Expected ']' after array index");
-      expr = arena_.make<ArrayIndex>(expr, index);
+      lhs = arena_.make<ArrayIndex>(lhs, index);
+      continue;
+    }
+
+    // Infix
+    auto [l_bp, r_bp2] = infix_bp(current_.type);
+    if (l_bp == 0 || l_bp < min_bp) break;
+
+    TokenType op = current_.type;
+    advance();
+
+    if (op == TokenType::Question) {
+      // Ternary: middle resets to bp=0, right uses r_bp
+      ExprNode* mhs = expr_bp(0);
+      consume(TokenType::Colon, "Expected ':' in ternary expression");
+      ExprNode* rhs = expr_bp(r_bp2);
+      lhs = arena_.make<TernaryConditional>(lhs, mhs, rhs);
     } else {
-      break;
+      ExprNode* rhs = expr_bp(r_bp2);
+      lhs = arena_.make<BinaryOp>(token_to_binop(op), lhs, rhs);
     }
   }
 
-  return expr;
+  return lhs;
 }
 
 ExprNode* Parser::primary() {

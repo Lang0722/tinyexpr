@@ -10,6 +10,7 @@
 #include "spice_expr/ast/functions.h"
 #include "spice_expr/ast/literals.h"
 #include "spice_expr/ast/operations.h"
+#include "spice_expr/ast/expression_builder.h"
 #include "spice_expr/ast/references.h"
 #include "spice_expr/circuit/circuit_interface.h"
 #include "spice_expr/engine/expression_engine.h"

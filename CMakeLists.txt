@@ -20,6 +20,7 @@ set(SPICE_EXPR_AST_SOURCES
     src/references.cc
     src/operations.cc
     src/functions.cc
+    src/expression_builder.cc
 )
 
 add_library(spice_expr_ast STATIC ${SPICE_EXPR_AST_SOURCES})
@@ -99,6 +100,8 @@ set(TEST_SOURCES
     tests/exprtk_corpus_tests.cc
     tests/exprtk_functional_tests.cc
     tests/exprtk_ext_tests_part1.cc
+    tests/ads_gummel_poon_tests.cc
+    tests/expression_builder_tests.cc
 )
 
 add_executable(spice_expr_tests ${TEST_SOURCES})

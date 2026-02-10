@@ -42,16 +42,7 @@ class Parser {
 
  private:
   ExprNode* expression();
-  ExprNode* ternary();
-  ExprNode* logical_or();
-  ExprNode* logical_and();
-  ExprNode* equality();
-  ExprNode* comparison();
-  ExprNode* additive();
-  ExprNode* multiplicative();
-  ExprNode* power();
-  ExprNode* unary();
-  ExprNode* postfix();
+  ExprNode* expr_bp(int min_bp);
   ExprNode* primary();
 
   ExprNode* function_call(const std::string& name);
